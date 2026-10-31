@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interview preparation | Resume Intelligence</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <script src="/js/app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<header class="app-header"><div class="header-inner"><a href="/index.html" class="brand"><span class="brand-mark" aria-hidden="true">ri</span>Resume Intelligence</a><div class="user-actions"><span id="userGreeting"></span><button id="logoutBtn" type="button" class="btn btn-quiet">Log out</button></div></div></header>
+<main id="main" class="app-main" tabindex="-1">
+  <div class="page-heading"><span class="eyebrow">Your interview workspace</span><h1>Prepare for your next interview</h1><p>Start with your resume. Discover your strengths and prepare with questions grounded in your experience.</p></div>
+  <section id="accessPanel" class="panel access-panel" aria-label="Account verification"><p id="accessStatus" role="status" aria-live="polite">Verifying your sign-in...</p><button type="button" id="retryAccess" class="btn btn-secondary" hidden>Retry connection</button></section>
+  <noscript><p class="status status-warning">JavaScript is required to upload and analyze your resume. Please enable it to continue.</p></noscript>
+  <div id="workspace" hidden>
+    <nav aria-label="Preparation workflow"><ol class="workflow">
+      <li><button type="button" id="stepResume" aria-current="step"><span class="workflow-number" aria-hidden="true">1</span><span><span class="workflow-name">Resume</span><span id="resumeStepState" class="workflow-state">Set up your interview</span></span></button></li>
+      <li><button type="button" id="stepAnalysis" disabled><span class="workflow-number" aria-hidden="true">2</span><span><span class="workflow-name">Analysis</span><span id="analysisStepState" class="workflow-state">Awaiting resume</span></span></button></li>
+      <li><button type="button" id="stepQuestions" disabled><span class="workflow-number" aria-hidden="true">3</span><span><span class="workflow-name">Interview Questions</span><span id="questionsStepState" class="workflow-state">Prepare from your results</span></span></button></li>
+    </ol></nav>
+    <section id="setupPanel" class="panel setup-panel" aria-labelledby="setupTitle">
+      <div class="section-heading"><div><h2 id="setupTitle" tabindex="-1">Interview setup</h2><p>Choose a resume and the opportunity you want to prepare for.</p></div><button id="editSetup" type="button" class="btn btn-secondary" aria-controls="setupForm" aria-expanded="true" hidden>Edit setup</button></div>
+      <p id="setupSummary" hidden></p>
+      <form id="setupForm" novalidate aria-busy="false"><fieldset id="setupFields"><legend class="sr-only">Resume and interview context</legend>
+        <div class="setup-grid"><div>
+          <div id="dropzone" class="dropzone"><span class="file-emblem" aria-hidden="true">PDF</span><p><strong>Drop your resume here</strong><br /><span class="secondary small">or choose a file from your device</span></p><button id="chooseFile" class="btn btn-secondary" type="button" aria-describedby="fileHelp fileError">Choose PDF</button><p id="fileHelp" class="helper">Text-based PDF, up to 5 MB. One resume at a time.</p></div>
+          <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden />
+          <div id="selectedFile" class="selected-file" hidden><p id="fileName" class="file-name"></p><p id="fileSize" class="small secondary"></p><div class="file-actions"><button type="button" id="replaceFile" class="btn btn-quiet">Replace</button><button type="button" id="removeFile" class="btn btn-quiet btn-danger">Remove</button></div><p class="small secondary">Removing this selection does not delete a saved resume.</p></div>
+          <p id="fileError" class="field-error" role="alert"></p>
+        </div><div>
+          <div class="field"><label for="targetRole">Target role</label><input type="text" id="targetRole" name="targetRole" value="Software Engineer Intern" placeholder="e.g. Software Engineer" aria-describedby="roleHelp" /><p class="helper" id="roleHelp">The role you want your questions to focus on.</p></div>
+          <div class="field"><label for="interviewType">Interview type</label><input type="text" id="interviewType" name="interviewType" value="Technical" placeholder="e.g. Technical" aria-describedby="typeHelp" /><p class="helper" id="typeHelp">Describe the kind of interview you are preparing for.</p></div>
+        </div></div>
+        <div class="setup-actions"><button type="submit" id="submitBtn" class="btn btn-primary" disabled>Analyze resume</button><p id="setupHelp" class="helper">Choose a PDF to get started.</p></div>
+      </fieldset></form>
+      <div id="processing" class="processing" hidden><div class="status" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><div><strong>Processing resume</strong><p>Uploading your PDF, extracting its text, analyzing your experience and preparing interview context. This may take a moment.</p></div></div><ol class="processing-stages"><li>Resume selected</li><li><strong>Processing resume</strong></li><li>Analysis ready when processing completes</li></ol></div>
+      <p id="uploadStatus" class="status" role="status" aria-live="polite"></p>
+    </section>
+    <section id="workspacePlaceholder" class="workspace-placeholder" aria-labelledby="placeholderTitle"><h2 id="placeholderTitle">A clearer picture of your experience</h2><p>Your analysis, parsed resume and personalized questions will appear here after you analyze a resume.</p></section>
+    <section id="results" aria-labelledby="resultsTitle" hidden>
+      <div class="results-header"><p class="eyebrow">Resume workspace</p><h2 id="resultsTitle" tabindex="-1">Your results</h2><p id="resultsContext" class="results-context"></p><p id="resultsFile" class="results-context"></p></div>
+      <p id="previousResultsNote" class="status status-warning" hidden>These results belong to your previous analysis. They will be replaced only when the new analysis succeeds.</p>
+      <div class="tabs" role="tablist" aria-label="Resume results">
+        <button class="tab" id="tabOverview" type="button" role="tab" aria-selected="true" aria-controls="overviewPanel" tabindex="0">Overview</button>
+        <button class="tab" id="tabDetails" type="button" role="tab" aria-selected="false" aria-controls="detailsPanel" tabindex="-1">Resume details</button>
+        <button class="tab" id="tabQuestions" type="button" role="tab" aria-selected="false" aria-controls="questionsPanel" tabindex="-1">Questions</button>
+      </div>
+      <div id="overviewPanel" class="tabpanel" role="tabpanel" aria-labelledby="tabOverview" tabindex="0">
+        <div class="overview-grid"><section class="panel content-panel" aria-labelledby="analysisTitle"><h3 id="analysisTitle">Your analysis</h3><div id="analysisSource" class="source-line"></div><p class="small secondary">Generated interpretation of your resume, separate from the extracted facts.</p><div id="analysisContent" class="analysis-group"></div></section><section class="panel content-panel" aria-labelledby="keySkillsTitle"><h3 id="keySkillsTitle">Skills from your resume</h3><div id="keySkills"></div><dl id="resumeFacts" class="facts"></dl><button id="viewDetails" type="button" class="btn btn-quiet full-width">Explore resume details</button><button id="prepareQuestions" type="button" class="btn btn-primary full-width">Prepare interview questions</button></section></div>
+      </div>
+      <div id="detailsPanel" class="tabpanel" role="tabpanel" aria-labelledby="tabDetails" tabindex="0" hidden><details id="extractionNotes" class="panel" hidden><summary>Extraction notes</summary><ul id="extractionNotesList" class="small secondary"></ul></details><div id="resumeDetails" class="details-grid"></div></div>
+      <div id="questionsPanel" class="tabpanel panel content-panel" role="tabpanel" aria-labelledby="tabQuestions" tabindex="0" hidden>
+        <div class="questions-toolbar"><div><h3>Practice with purpose</h3><p>Questions grounded in your resume and the interview context submitted with this analysis.</p><p id="questionContext"></p></div><button id="generateQuestionsBtn" type="button" class="btn btn-primary">Generate questions</button></div>
+        <div id="questionsSource"></div><p id="questionsStatus" class="status" role="status" aria-live="polite"></p>
+        <div id="questionsEmpty" class="question-empty"><h4>Your next step: prepare your answers</h4><p>Generate questions to explore your skills, projects and experience.</p></div>
+        <ol id="questionsList" class="question-list"></ol>
+      </div>
+      <details class="technical" id="technicalDetails"><summary>Technical details</summary><p class="small secondary">Original response for this resume analysis.</p><pre id="rawJson" tabindex="0" aria-label="Raw resume analysis response"></pre></details>
+    </section>
+  </div>
+</main>
+<footer class="app-footer">Resume Intelligence <span aria-hidden="true">/</span> Focused preparation, grounded in your experience.</footer>
+</body>
+</html>

@@ -1,0 +1,22 @@
+node_modules/
+.env
+uploads/*
+!uploads/.gitkeep
+
+# Private local configuration
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated files
+node_modules/
+coverage/
+*.log
+
+# Personal resume files
+test/vedant_resume*.pdf
+
+# Local UI backups and patch instructions
+public/index.backup.html
+APPLY-UI-PATCH.txt
+APPLY-UI-STRUCTURE-PATCH.txt

@@ -1,0 +1,29 @@
+AI INTERVIEW QUESTION GENERATION PATCH
+
+This patch is intended to be extracted into the ROOT of your existing
+resume-interview-project-improved folder.
+
+It replaces only these files:
+- src/services/questionCategories.js
+- src/services/questionValidatorService.js
+- src/services/questionGeneratorService.js
+- test/categoryQuestions.test.js
+- test/liveOllamaCategories.js
+
+It does NOT include or overwrite:
+- .env
+- .env.example
+- package.json
+- package-lock.json
+- node_modules
+- uploaded resumes or local data
+
+After extracting with overwrite into your existing project root, run:
+
+  npm test
+  node test/liveOllamaCategories.js
+
+The category test count increases from 119 to 120 due to a new regression
+test that covers natural Ollama wording observed in the previous live run.
+
+The live Ollama test must be run on the computer where Ollama is installed.

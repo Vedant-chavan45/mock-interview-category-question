@@ -1,0 +1,19 @@
+:root {
+  --page: #F6F7FB; --surface: #FFFFFF; --surface-secondary: #EEF1F6;
+  --text: #172033; --text-secondary: #475569; --text-muted: #64748B;
+  --border: #DDE3EC; --control-border: #7C899B;
+  --accent: #4F46E5; --accent-hover: #4338CA; --accent-active: #3730A3; --accent-tint: #EEF2FF;
+  --success: #166534; --success-bg: #F0FDF4; --warning: #92400E; --warning-bg: #FFFBEB;
+  --danger: #B91C1C; --danger-bg: #FEF2F2; --focus: #2563EB;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --text-xs: .75rem; --text-sm: .875rem; --text-base: 1rem; --text-card: 1.125rem;
+  --text-section: 1.375rem; --text-title: 2rem; --text-title-mobile: 1.625rem;
+  --weight-medium: 600; --weight-heading: 650; --weight-bold: 700; --line-height: 1.6;
+  --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem; --s6: 1.5rem;
+  --s8: 2rem; --s12: 3rem; --s16: 4rem;
+  --radius-sm: 6px; --radius-control: 10px; --radius-panel: 14px; --radius-pill: 999px;
+  --shadow-low: 0 2px 8px rgb(23 32 51 / 3%);
+  --shadow-panel: 0 8px 32px rgb(23 32 51 / 5%);
+  --duration: 180ms; --ease: ease; --content-width: 1180px;
+}

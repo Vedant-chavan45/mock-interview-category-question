@@ -1,0 +1,27 @@
+{
+  "name": "resume-parser-module",
+  "version": "1.0.0",
+  "description": "Module 4 - Resume Processing & Personalised Question Generation (Resume Parser) for AI-Powered Mock Interview Platform",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test test/mongoCheckpoint.test.js test/auth.test.js test/questionGenerator.test.js test/categoryQuestions.test.js test/categoryApi.test.js test/ollamaService.test.js test/interviewPlanner.test.js test/questionValidator.test.js test/resumeParsingRegression.test.js test/evaluateQuestions.test.js test/uiNavigation.test.js",
+    "evaluate:questions": "node test/evaluateQuestions.js",
+    "demo": "node test/parseSample.js test/sample_resume.pdf",
+    "demo:generate": "node test/parseSample.js",
+    "test:integration": "node --test test/auth.integration.test.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "8.24.4",
+    "multer": "^2.4.0",
+    "pdf-parse": "^1.1.1"
+  }
+}
