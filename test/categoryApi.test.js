@@ -28,8 +28,17 @@ test('category API rejects invalid categories and request data before generation
   assert.equal(generate.mock.callCount(), 0);
 });
 
-test('category API verifies resume ownership and uses saved context', async (t) => {
+test('category API verifies resume ownership, uses saved context and persists the generated set', async (t) => {
   t.mock.method(Resume, 'findOne', (filter) => ({ lean: async () => filter.userId === userId ? record : null }));
+  const update = t.mock.method(Resume, 'updateOne', async (filter, change) => {
+    assert.equal(filter._id, resumeId);
+    assert.equal(filter.userId, userId);
+    const saved = change.$set['practice.categories.applied_scenarios'];
+    assert.equal(saved.questions.length, 6);
+    assert.equal(saved.questions[0].answer, '');
+    assert.equal(saved.questions[0].evaluation, null);
+    return { matchedCount: 1 };
+  });
   const generate = t.mock.method(generator, 'generateCategoryQuestions', async (context, category) => {
     assert.strictEqual(context, record.resumeContext);
     assert.equal(category, 'applied_scenarios');
@@ -49,6 +58,7 @@ test('category API verifies resume ownership and uses saved context', async (t) 
   assert.equal(response.body.source, 'ollama-llama3.2');
   assert.equal(response.body.category, 'applied_scenarios');
   assert.equal(generate.mock.callCount(), 1);
+  assert.equal(update.mock.callCount(), 1);
 });
 
 test('category API never presents rule-based output as a successful generated set', async (t) => {
@@ -82,6 +92,7 @@ test('category API exposes insufficient evidence and sanitizes generation failur
 
 test('category API rejects overlapping generation for the same resume and category', async (t) => {
   t.mock.method(Resume, 'findOne', () => ({ lean: async () => record }));
+  t.mock.method(Resume, 'updateOne', async () => ({ matchedCount: 1 }));
   let finish;
   const generate = t.mock.method(generator, 'generateCategoryQuestions', () => new Promise((resolve) => { finish = resolve; }));
   const firstResponse = res();
@@ -96,4 +107,129 @@ test('category API rejects overlapping generation for the same resume and catego
     questions: Array.from({ length: 6 }, (_, index) => ({ question: `How would you inspect a request path at stage ${index}?` })) });
   await first;
   assert.equal(firstResponse.statusCode, 200);
+});
+
+
+test('practice API returns only the authenticated owner\'s saved category data', async (t) => {
+  const practice = { categories: { domain_fundamentals: { status: 'ready', questions: [{ question: 'How do you test an API?', answer: 'I test status codes.', evaluation: { score: 8.5 } }] } } };
+  t.mock.method(Resume, 'findOne', (filter) => ({ lean: async () => filter.userId === userId ? { ...record, practice } : null }));
+  const response = res();
+  await controller.getPractice(req(), response);
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body.categories, practice.categories);
+  const foreign = res();
+  await controller.getPractice(req(otherUser), foreign);
+  assert.equal(foreign.statusCode, 404);
+});
+
+test('answer evaluation validates input before accessing resume data', async (t) => {
+  t.mock.method(Resume, 'findOne', () => { throw new Error('Invalid request must not query'); });
+  const evaluate = t.mock.method(require('../src/services/answerEvaluationService'), 'evaluateAnswer', async () => {
+    throw new Error('Must not evaluate');
+  });
+  for (const [request, expected] of [
+    [{ ...req(userId, 'not_a_category'), params: { ...req().params, category: 'not_a_category', questionIndex: '0' }, body: { answer: 'A sufficiently long answer.' } }, 400],
+    [{ ...req(), params: { ...req().params, questionIndex: '6' }, body: { answer: 'A sufficiently long answer.' } }, 400],
+    [{ ...req(), params: { ...req().params, questionIndex: '0' }, body: { answer: '   ' } }, 400],
+    [{ ...req(), params: { ...req().params, questionIndex: '0' }, body: { answer: 'Answer', other: 'not allowed' } }, 400],
+  ]) {
+    const response = res();
+    await controller.evaluateAnswer(request, response);
+    assert.equal(response.statusCode, expected);
+  }
+  assert.equal(evaluate.mock.callCount(), 0);
+});
+
+test('answer evaluation checks ownership, evaluates and persists answer plus score and feedback', async (t) => {
+  const questionSet = { status: 'ready', questions: Array.from({ length: 6 }, (_, index) => ({
+    question: `How would you test API behavior ${index}?`, slotId: `slot_${index}`, type: 'technical', basedOn: 'Node.js',
+  })) };
+  t.mock.method(Resume, 'findOne', (filter) => ({ lean: async () => filter.userId === userId ? {
+    ...record, practice: { categories: { domain_fundamentals: questionSet } },
+  } : null }));
+  const evaluate = t.mock.method(require('../src/services/answerEvaluationService'), 'evaluateAnswer', async (input) => {
+    assert.equal(input.question, 'How would you test API behavior 2?');
+    assert.equal(input.answer, 'I would test valid and invalid requests.');
+    assert.equal(input.categoryLabel, 'Role & Domain Fundamentals');
+    return { relevance: 'good', score: 8.5, evidence: ['I would test valid and invalid requests.'], feedback: 'A relevant and well-structured answer with sound testing steps.',
+      strengths: ['You covered valid and invalid cases.'], improvements: ['Mention boundary and authorization tests.'], model: 'llama3.2:latest' };
+  });
+  const update = t.mock.method(Resume, 'updateOne', async (filter, change) => {
+    assert.equal(filter['practice.categories.domain_fundamentals.questions.2.question'], 'How would you test API behavior 2?');
+    const saved = change.$set;
+    assert.equal(saved['practice.categories.domain_fundamentals.questions.2.answer'], 'I would test valid and invalid requests.');
+    assert.equal(saved['practice.categories.domain_fundamentals.questions.2.evaluation'].score, 8.5);
+    assert.equal(saved['practice.categories.domain_fundamentals.questions.2.evaluation'].relevance, 'good');
+    assert.deepEqual(saved['practice.categories.domain_fundamentals.questions.2.evaluation'].evidence, ['I would test valid and invalid requests.']);
+    assert.match(saved['practice.categories.domain_fundamentals.questions.2.evaluation'].feedback, /well-structured/);
+    return { matchedCount: 1 };
+  });
+  const foreign = res();
+  await controller.evaluateAnswer({ ...req(otherUser), params: { ...req().params, questionIndex: '2' }, body: { answer: 'I would test valid and invalid requests.' } }, foreign);
+  assert.equal(foreign.statusCode, 404);
+  const response = res();
+  await controller.evaluateAnswer({ ...req(), params: { ...req().params, questionIndex: '2' }, body: { answer: 'I would test valid and invalid requests.' } }, response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.evaluation.score, 8.5);
+  assert.equal(response.body.questionIndex, 2);
+  assert.equal(evaluate.mock.callCount(), 1);
+  assert.equal(update.mock.callCount(), 1);
+});
+
+
+
+test('answer evaluation rejects a second in-flight request for the same question', async (t) => {
+  const questionSet = { status: 'ready', questions: Array.from({ length: 6 }, (_, index) => ({
+    question: `How would you test a request at stage ${index}?`, slotId: `slot_${index}`,
+  })) };
+  t.mock.method(Resume, 'findOne', () => ({ lean: async () => ({
+    ...record, practice: { categories: { domain_fundamentals: questionSet } },
+  }) }));
+  t.mock.method(Resume, 'updateOne', async () => ({ matchedCount: 1 }));
+  let finishEvaluation;
+  const evaluate = t.mock.method(require('../src/services/answerEvaluationService'), 'evaluateAnswer', () =>
+    new Promise((resolve) => { finishEvaluation = resolve; }));
+  const request = { ...req(), params: { ...req().params, questionIndex: '0' },
+    body: { answer: 'I would check the request, response and error handling.' } };
+
+  const firstResponse = res();
+  const firstRequest = controller.evaluateAnswer(request, firstResponse);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(evaluate.mock.callCount(), 1);
+
+  const secondResponse = res();
+  await controller.evaluateAnswer(request, secondResponse);
+  assert.equal(secondResponse.statusCode, 409);
+  assert.match(secondResponse.body.error, /already being evaluated/i);
+  assert.equal(evaluate.mock.callCount(), 1, 'a duplicate request must not call Ollama again');
+
+  finishEvaluation({ relevance: 'good', score: 8, evidence: ['check the request, response'],
+    feedback: 'A relevant response.', strengths: ['You covered the request and response.'],
+    improvements: ['Add a concrete test case.'], model: 'llama3.2:latest' });
+  await firstRequest;
+  assert.equal(firstResponse.statusCode, 200);
+});
+
+test('answer text is preserved when Ollama evaluation fails so the candidate can retry', async (t) => {
+  const questionSet = { status: 'ready', questions: Array.from({ length: 6 }, (_, index) => ({
+    question: `Explain API test case ${index}?`, slotId: `slot_${index}`,
+  })) };
+  t.mock.method(Resume, 'findOne', () => ({ lean: async () => ({
+    ...record, practice: { categories: { domain_fundamentals: questionSet } },
+  }) }));
+  t.mock.method(require('../src/services/answerEvaluationService'), 'evaluateAnswer', async () => {
+    throw Object.assign(new Error('Ollama unavailable'), { code: 'ECONNREFUSED' });
+  });
+  const update = t.mock.method(Resume, 'updateOne', async (filter, change) => {
+    assert.equal(filter['practice.categories.domain_fundamentals.questions.0.question'], 'Explain API test case 0?');
+    assert.equal(change.$set['practice.categories.domain_fundamentals.questions.0.answer'], 'I would test both success and error responses.');
+    assert.deepEqual(Object.keys(change.$set), ['practice.categories.domain_fundamentals.questions.0.answer']);
+    return { matchedCount: 1 };
+  });
+  const response = res();
+  await controller.evaluateAnswer({ ...req(), params: { ...req().params, questionIndex: '0' },
+    body: { answer: 'I would test both success and error responses.' } }, response);
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.body.errorCode, 'evaluation-unavailable');
+  assert.equal(update.mock.callCount(), 1);
 });

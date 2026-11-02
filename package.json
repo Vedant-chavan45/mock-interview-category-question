@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test test/mongoCheckpoint.test.js test/auth.test.js test/questionGenerator.test.js test/categoryQuestions.test.js test/categoryApi.test.js test/ollamaService.test.js test/interviewPlanner.test.js test/questionValidator.test.js test/resumeParsingRegression.test.js test/evaluateQuestions.test.js test/uiNavigation.test.js",
+    "test": "node --test test/answerEvaluationService.test.js test/mongoCheckpoint.test.js test/auth.test.js test/questionGenerator.test.js test/categoryQuestions.test.js test/categoryApi.test.js test/ollamaService.test.js test/interviewPlanner.test.js test/questionValidator.test.js test/resumeParsingRegression.test.js test/evaluateQuestions.test.js test/uiNavigation.test.js",
     "evaluate:questions": "node test/evaluateQuestions.js",
     "demo": "node test/parseSample.js test/sample_resume.pdf",
     "demo:generate": "node test/parseSample.js",

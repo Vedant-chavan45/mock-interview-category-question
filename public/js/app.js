@@ -4,8 +4,12 @@
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const state = { token: '', authenticated: false, leaving: false, file: null, current: null,
     uploadBusy: false, categoryBusy: '', categoryWorkflowEntered: false, selectedCategory: '',
-    categoryQuestions: Object.create(null), categoryErrors: Object.create(null), categoryInsufficient: Object.create(null), uploadId: 0, questionId: 0, authId: 0 };
+    categoryQuestions: Object.create(null), categoryErrors: Object.create(null), categoryInsufficient: Object.create(null),
+    answerDrafts: Object.create(null), answerBusy: Object.create(null), answerErrors: Object.create(null),
+    practiceLoading: false, practiceLoadError: '', practiceLoadedFor: '',
+    uploadId: 0, questionId: 0, authId: 0 };
   let authRequest, uploadRequest, questionRequest;
+  const answerRequests = new Map();
   const questionCategories = [
     { id: 'domain_fundamentals', label: 'Role & Domain Fundamentals', description: 'Explore core principles and trade-offs that shape the target role and its technical domain.' },
     { id: 'technical_concepts', label: 'Technical Skills & Concepts', description: 'Assess practical understanding of the skills and technologies evidenced in the resume.' },
@@ -19,6 +23,8 @@
   const text = value => typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   const strings = value => Array.isArray(value) ? value.filter(item => typeof item === 'string' && item.trim()) : [];
   const records = value => Array.isArray(value) ? value.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
+  const answerKey = (categoryId, index) => `${categoryId}:${index}`;
+  const categoryHasActiveAnswerEvaluations = categoryId => Object.keys(state.answerBusy).some(key => key.startsWith(`${categoryId}:`) && state.answerBusy[key]);
   // Untrusted resume/model data is rendered exclusively as text nodes.
   function node(tag, content = '', className = '') {
     const el = document.createElement(tag); el.textContent = text(content);
@@ -38,6 +44,8 @@
   function invalidateRequests() {
     state.authId++; state.uploadId++; state.questionId++;
     authRequest?.abort(); uploadRequest?.abort(); questionRequest?.abort();
+    for (const request of answerRequests.values()) request.abort();
+    answerRequests.clear();
   }
   function leave(message) {
     state.leaving = true; state.authenticated = false; invalidateRequests();
@@ -124,6 +132,90 @@
       record.model && record.source === `ollama-${record.model}` && record.status === 'ready' &&
       Array.isArray(record.questions) && record.questions.length === 6);
   }
+  function renderEvaluation(parent, evaluation) {
+    if (!evaluation || typeof evaluation !== 'object') return;
+    const panel = node('section', '', 'answer-evaluation');
+    const header = node('div', '', 'evaluation-heading');
+    header.append(node('strong', 'AI evaluation', 'evaluation-title'));
+    header.append(node('span', `${text(evaluation.score)}/10`, 'evaluation-score'));
+    panel.append(header);
+    panel.append(node('p', evaluation.feedback, 'evaluation-feedback'));
+    for (const [title, values, className] of [
+      ['What you did well', evaluation.strengths, 'evaluation-strengths'],
+      ['What to improve', evaluation.improvements, 'evaluation-improvements'],
+    ]) {
+      const items = strings(values);
+      if (!items.length) continue;
+      const group = node('div', '', className);
+      group.append(node('h5', title));
+      const list = node('ul');
+      items.forEach(value => list.append(node('li', value)));
+      group.append(list); panel.append(group);
+    }
+    if (text(evaluation.model)) panel.append(node('p', `Evaluated by ${text(evaluation.model)}`, 'evaluation-model'));
+    parent.append(panel);
+  }
+
+  function renderQuestionPractice(item, question, index, categoryId) {
+    const key = answerKey(categoryId, index);
+    const fieldId = `answer-${categoryId}-${index}`;
+    // The state flag drives rendering; the request Map is an additional lock so
+    // an already-running request cannot be replaced by a second click.
+    const busy = Boolean(state.answerBusy[key] || answerRequests.has(key));
+    const answer = Object.hasOwn(state.answerDrafts, key)
+      ? state.answerDrafts[key] : text(question.answer);
+
+    item.append(node('p', question.question, 'question-body'));
+    const meta = node('div', '', 'question-meta');
+    if (text(question.type)) meta.append(node('span', question.type, 'badge'));
+    if (text(question.basedOn)) meta.append(node('p', `Based on: ${text(question.basedOn)}`));
+    item.append(meta);
+
+    const answerPanel = node('section', '', 'answer-panel');
+    const answerLabel = node('label', 'Your answer', 'answer-label');
+    answerLabel.htmlFor = fieldId;
+    answerPanel.append(answerLabel);
+    const textarea = document.createElement('textarea');
+    textarea.id = fieldId;
+    textarea.name = fieldId;
+    textarea.rows = 5;
+    textarea.maxLength = 8000;
+    textarea.placeholder = 'Type your answer here. Explain your approach, reasoning and any relevant example…';
+    textarea.value = answer;
+    textarea.disabled = busy || !state.authenticated;
+    textarea.setAttribute('aria-describedby', `${fieldId}-hint ${fieldId}-count`);
+    textarea.addEventListener('input', () => {
+      state.answerDrafts[key] = textarea.value;
+      count.textContent = `${textarea.value.length.toLocaleString()} / 8,000 characters`;
+    });
+    answerPanel.append(textarea);
+
+    const hint = node('p', 'Your answer is evaluated individually. You can edit it and request a new evaluation later.', 'helper');
+    hint.id = `${fieldId}-hint`;
+    const controls = node('div', '', 'answer-controls');
+    const count = node('span', `${answer.length.toLocaleString()} / 8,000 characters`, 'answer-character-count');
+    count.id = `${fieldId}-count`;
+    const button = node('button', busy ? 'Evaluating with Ollama…' : question.evaluation ? 'Re-evaluate answer' : 'Evaluate answer', 'btn btn-primary answer-evaluate-button');
+    button.type = 'button';
+    button.disabled = busy || !state.authenticated;
+    button.setAttribute('aria-busy', String(busy));
+    button.setAttribute('aria-label', busy ? 'Evaluation in progress. Please wait.' :
+      (question.evaluation ? 'Re-evaluate answer' : 'Evaluate answer'));
+    if (busy) button.classList.add('is-evaluating');
+    button.addEventListener('click', () => evaluateAnswer(categoryId, index));
+    controls.append(count, button);
+    answerPanel.append(hint, controls);
+
+    const errorText = state.answerErrors[key];
+    const error = node('p', errorText || '', 'answer-error');
+    error.hidden = !errorText;
+    error.setAttribute('role', 'alert');
+    answerPanel.append(error);
+    if (busy) answerPanel.append(node('p', 'Ollama is reviewing your answer against the question and interview criteria. This may take a little while.', 'answer-progress'));
+    renderEvaluation(answerPanel, question.evaluation);
+    item.append(answerPanel);
+  }
+
   function renderCategoryInterface() {
     const checklist = $('categoryChecklist');
     if (!checklist) return;
@@ -149,7 +241,9 @@
       indicator.setAttribute('aria-hidden', 'true');
       const copy = node('span', '', 'category-copy');
       copy.append(node('span', category.label, 'category-name'));
-      const rowStatus = node('span', isBusy && !ready ? 'Generating…' : ready ? 'Questions ready' : state.categoryInsufficient[category.id] ? 'Insufficient evidence' : state.categoryErrors[category.id] ? 'Generation failed' : 'Not started', 'category-checklist-status' + (ready ? ' is-ready' : '') + ((state.categoryErrors[category.id] || state.categoryInsufficient[category.id]) && !ready ? ' is-error' : ''));
+      const evaluatedCount = ready ? record.questions.filter((question) => question.evaluation && Number.isFinite(question.evaluation.score)).length : 0;
+      const readyLabel = ready ? evaluatedCount ? `${evaluatedCount}/6 evaluated` : 'Questions ready' : '';
+      const rowStatus = node('span', isBusy && !ready ? 'Generating…' : readyLabel || (state.categoryInsufficient[category.id] ? 'Insufficient evidence' : state.categoryErrors[category.id] ? 'Generation failed' : 'Not started'), 'category-checklist-status' + (ready ? ' is-ready' : '') + ((state.categoryErrors[category.id] || state.categoryInsufficient[category.id]) && !ready ? ' is-error' : ''));
       copy.append(rowStatus);
       if (isBusy && ready) copy.append(node('span', 'Regenerating… Existing set available', 'category-substatus'));
       else if (state.categoryErrors[category.id] && ready) copy.append(node('span', 'Regeneration failed; existing set kept', 'category-substatus is-error'));
@@ -176,11 +270,14 @@
     $('selectedCategoryStatus').className = 'category-workspace-status';
     $('selectedCategoryError').hidden = true;
     $('selectedCategoryError').textContent = '';
-    $('generateCategoryButton').disabled = !selected || !state.current || selectedBusy || Boolean(state.categoryBusy) || state.uploadBusy || !state.authenticated || Boolean(state.categoryInsufficient[selected?.id]);
+    const selectedAnswerBusy = Boolean(selected && categoryHasActiveAnswerEvaluations(selected.id));
+    $('generateCategoryButton').disabled = !selected || !state.current || selectedBusy || Boolean(state.categoryBusy) || selectedAnswerBusy || state.practiceLoading || state.uploadBusy || !state.authenticated || Boolean(state.categoryInsufficient[selected?.id]);
     $('generateCategorySpinner').hidden = !selectedBusy;
-    $('generateCategoryLabel').textContent = selectedBusy ? 'Generating…' : anotherCategoryBusy ? 'Generation in progress' : state.categoryInsufficient[selected?.id] ? 'Insufficient resume evidence' : state.categoryErrors[selected?.id] ? 'Retry generation' : hasQuestions ? 'Regenerate Questions' : 'Generate 6 Questions';
+    $('generateCategoryLabel').textContent = selectedBusy ? 'Generating…' : selectedAnswerBusy ? 'Evaluating answer…' : state.practiceLoading ? 'Loading saved work…' : anotherCategoryBusy ? 'Generation in progress' : state.categoryInsufficient[selected?.id] ? 'Insufficient resume evidence' : state.categoryErrors[selected?.id] ? 'Retry generation' : hasQuestions ? 'Regenerate Questions' : 'Generate 6 Questions';
     $('categoryActionDescription').textContent = selectedBusy
       ? 'Generating questions for this category only…'
+      : selectedAnswerBusy ? 'An answer in this category is being evaluated. You can keep editing other answers after it completes.'
+      : state.practiceLoading ? 'Restoring saved question sets, answers and evaluations…'
       : anotherCategoryBusy ? `Generating ${questionCategories.find((category) => category.id === state.categoryBusy)?.label || 'another category'} questions. You can continue reviewing this category.`
       : state.categoryInsufficient[selected?.id] ? 'This category needs documented project, skill, or experience evidence in the resume.'
         : state.categoryErrors[selected?.id] ? `No new question set was accepted. ${hasQuestions ? 'Your current questions remain available.' : 'Retry when ready.'}`
@@ -212,8 +309,15 @@
     } else if (state.categoryErrors[selected.id]) {
       $('selectedCategoryStatus').classList.add('is-error');
       $('selectedCategoryStatus').textContent = 'Generation failed';
+    } else if (state.practiceLoading) {
+      $('selectedCategoryStatus').classList.add('is-loading');
+      $('selectedCategoryStatus').textContent = 'Restoring saved practice data…';
     } else {
       $('selectedCategoryStatus').textContent = 'Not started';
+    }
+    if (state.practiceLoadError) {
+      $('selectedCategoryError').textContent = state.practiceLoadError;
+      $('selectedCategoryError').hidden = false;
     }
     if (state.categoryErrors[selected.id] || state.categoryInsufficient[selected.id]) {
       const retainedSetMessage = hasQuestions ? ' Your previous question set is still available.' : '';
@@ -233,19 +337,20 @@
         if (m.cacheHit) details.push('session cache');
         $('categorySource').append(node('p', details.join(' · '), 'helper'));
       }
-      record.questions.forEach((question) => {
-        const item = node('li'); item.append(node('p', question.question, 'question-body'));
-        const meta = node('div', '', 'question-meta');
-        if (text(question.type)) meta.append(node('span', question.type, 'badge'));
-        if (text(question.basedOn)) meta.append(node('p', 'Based on: ' + text(question.basedOn)));
-        item.append(meta); $('categoryQuestionList').append(item);
+      record.questions.forEach((question, index) => {
+        const item = node('li', '', 'question-practice-item');
+        renderQuestionPractice(item, question, index, selected.id);
+        $('categoryQuestionList').append(item);
       });
     }
   }
   async function generateCategory(categoryId) {
-    if (!state.current || state.categoryBusy || state.uploadBusy || !state.authenticated || state.leaving) return;
+    if (!state.current || state.categoryBusy || state.uploadBusy || !state.authenticated || state.leaving || categoryHasActiveAnswerEvaluations(categoryId)) return;
     const category = questionCategories.find((item) => item.id === categoryId);
     if (!category) return;
+    const existingQuestions = state.categoryQuestions[categoryId]?.questions || [];
+    const hasSubmittedWork = existingQuestions.some((question) => text(question.answer).trim() || question.evaluation);
+    if (hasSubmittedWork && !window.confirm('Generating a new question set will replace the answers and evaluations for this category. Continue?')) return;
     selectCategory(categoryId);
     const resumeId = state.current.id;
     const uploadId = state.uploadId;
@@ -273,6 +378,10 @@
       }
       state.categoryQuestions[categoryId] = { questions: data.questions, source: data.source, model: data.model,
         metrics: data.metrics, status: data.status };
+      for (let index = 0; index < 6; index += 1) {
+        const key = answerKey(categoryId, index);
+        delete state.answerDrafts[key]; delete state.answerErrors[key]; delete state.answerBusy[key];
+      }
       delete state.categoryInsufficient[categoryId];
     } catch (error) {
       if (!isCurrent() || error.name === 'AbortError') return;
@@ -281,6 +390,110 @@
       if (isCurrent()) { state.categoryBusy = ''; syncControls(); }
     }
   }
+  async function evaluateAnswer(categoryId, questionIndex) {
+    const record = state.categoryQuestions[categoryId];
+    const question = record?.questions?.[questionIndex];
+    if (!state.current || !isOllamaResult(record) || !question || state.uploadBusy || !state.authenticated || state.leaving) return;
+    const key = answerKey(categoryId, questionIndex);
+    // Guard both the visible busy state and the in-flight request slot. This
+    // prevents double-clicks or stale event handlers from starting a second
+    // Ollama evaluation for the same question.
+    if (state.answerBusy[key] || answerRequests.has(key)) return;
+    const answer = Object.hasOwn(state.answerDrafts, key) ? state.answerDrafts[key] : text(question.answer);
+    if (!answer.trim()) {
+      state.answerErrors[key] = 'Enter your answer before requesting an evaluation.';
+      renderCategoryInterface();
+      $(`answer-${categoryId}-${questionIndex}`).focus();
+      return;
+    }
+    if (answer.length > 8000) {
+      state.answerErrors[key] = 'Your answer must be 8,000 characters or fewer.';
+      renderCategoryInterface();
+      return;
+    }
+
+    const resumeId = state.current.id;
+    const uploadId = state.uploadId;
+    const controller = new AbortController();
+    // Never abort-and-replace an active evaluation for the same question.
+    // The first request owns this slot until its finally block releases it.
+    answerRequests.set(key, controller);
+    state.answerBusy[key] = true;
+    delete state.answerErrors[key];
+    renderCategoryInterface();
+
+    const isCurrent = () => uploadId === state.uploadId && resumeId === state.current?.id && !state.leaving &&
+      state.categoryQuestions[categoryId]?.questions?.[questionIndex]?.question === question.question;
+    try {
+      const response = await fetch(`/api/resume/${encodeURIComponent(resumeId)}/questions/${encodeURIComponent(categoryId)}/${questionIndex}/evaluate`, {
+        method: 'POST',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer }),
+        signal: controller.signal,
+      });
+      if (!isCurrent()) return;
+      if (unauthorized(response)) return;
+      const data = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
+      if (!response.ok || data.category !== categoryId || data.questionIndex !== questionIndex ||
+          !data.evaluation || !Number.isFinite(data.evaluation.score)) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Unable to evaluate this answer. Please retry.');
+      }
+      question.answer = data.answer;
+      question.evaluation = data.evaluation;
+      state.answerDrafts[key] = data.answer;
+      delete state.answerErrors[key];
+    } catch (error) {
+      if (!isCurrent() || error.name === 'AbortError') return;
+      state.answerErrors[key] = error.message || 'Unable to evaluate this answer. Please retry.';
+    } finally {
+      const ownsRequestSlot = answerRequests.get(key) === controller;
+      if (ownsRequestSlot) answerRequests.delete(key);
+      if (ownsRequestSlot && uploadId === state.uploadId && resumeId === state.current?.id) {
+        delete state.answerBusy[key];
+        if (isCurrent()) renderCategoryInterface();
+      }
+    }
+  }
+
+  async function loadPractice() {
+    if (!state.current || state.practiceLoading || state.practiceLoadedFor === state.current.id) return;
+    const resumeId = state.current.id;
+    const uploadId = state.uploadId;
+    state.practiceLoading = true;
+    state.practiceLoadError = '';
+    renderCategoryInterface();
+    try {
+      const response = await fetch(`/api/resume/${encodeURIComponent(resumeId)}/practice`, { headers: headers() });
+      if (uploadId !== state.uploadId || resumeId !== state.current?.id || state.leaving) return;
+      if (unauthorized(response)) return;
+      const data = await response.json().catch(() => ({}));
+      if (uploadId !== state.uploadId || resumeId !== state.current?.id || state.leaving) return;
+      if (!response.ok || !data.categories || typeof data.categories !== 'object') {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Could not restore saved answers and evaluations.');
+      }
+      for (const [categoryId, categoryRecord] of Object.entries(data.categories)) {
+        if (questionCategories.some((category) => category.id === categoryId) && isOllamaResult(categoryRecord)) {
+          state.categoryQuestions[categoryId] = categoryRecord;
+          for (let index = 0; index < 6; index += 1) {
+            const key = answerKey(categoryId, index);
+            if (typeof categoryRecord.questions[index]?.answer === 'string') state.answerDrafts[key] = categoryRecord.questions[index].answer;
+          }
+        }
+      }
+      state.practiceLoadedFor = resumeId;
+    } catch (error) {
+      if (uploadId === state.uploadId && resumeId === state.current?.id) {
+        state.practiceLoadError = error.message || 'Could not restore saved practice data.';
+      }
+    } finally {
+      if (uploadId === state.uploadId && resumeId === state.current?.id && !state.leaving) {
+        state.practiceLoading = false;
+        renderCategoryInterface();
+      }
+    }
+  }
+
   function selectTab(index, focus = false) {
     tabs.forEach((tab, i) => {
       tab.setAttribute('aria-selected', String(i === index)); tab.tabIndex = i === index ? 0 : -1;
@@ -321,7 +534,7 @@
     if (!state.current || state.uploadBusy || !state.authenticated || state.leaving) return;
     state.categoryWorkflowEntered = true;
     if (!state.selectedCategory) state.selectedCategory = questionCategories[0].id;
-    syncControls(); setStep(2); focusSection($('questionsStageTitle'));
+    syncControls(); setStep(2); loadPractice(); focusSection($('questionsStageTitle'));
   });
   $('generateCategoryButton').addEventListener('click', () => generateCategory(state.selectedCategory));
   $('backToAnalysis').addEventListener('click', () => { selectTab(0); focusSection($('resultsTitle')); });
@@ -474,6 +687,9 @@
     const id = ++state.uploadId;
     uploadRequest?.abort(); uploadRequest = new AbortController();
     state.questionId++; questionRequest?.abort(); state.categoryBusy = '';
+    for (const request of answerRequests.values()) request.abort();
+    answerRequests.clear();
+    state.answerBusy = Object.create(null); state.answerErrors = Object.create(null); state.answerDrafts = Object.create(null);
     status('questionsStatus');
     state.uploadBusy = true; status('uploadStatus'); syncControls();
     $('previousResultsNote').hidden = !state.current;
@@ -495,6 +711,8 @@
       if (typeof data.resumeId !== 'string' || !data.parsedResume || typeof data.parsedResume !== 'object') throw new Error('response');
       state.current = { id: data.resumeId, snapshot };
       state.categoryQuestions = Object.create(null); state.categoryErrors = Object.create(null); state.categoryInsufficient = Object.create(null);
+      state.answerDrafts = Object.create(null); state.answerBusy = Object.create(null); state.answerErrors = Object.create(null);
+      state.practiceLoading = false; state.practiceLoadError = ''; state.practiceLoadedFor = '';
       state.categoryWorkflowEntered = false; state.selectedCategory = '';
       renderResults(data, snapshot);
       status('uploadStatus', 'Analysis ready. Your results are below.', 'success');

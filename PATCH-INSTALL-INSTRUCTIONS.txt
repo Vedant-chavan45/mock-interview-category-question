@@ -1,0 +1,32 @@
+EVALUATE / RE-EVALUATE BUTTON LOCK PATCH
+
+Apply this patch over the ROOT of your existing
+resume-interview-project-improved folder.
+
+Files included:
+- public/js/app.js
+- public/css/app.css
+- test/categoryApi.test.js
+- test/uiNavigation.test.js
+
+What changes:
+- The Evaluate Answer / Re-evaluate Answer button is disabled for the
+  specific question while its Ollama evaluation is in progress.
+- The button shows an evaluating label, accessible busy state and a small
+  progress spinner (with reduced-motion support).
+- The browser keeps an in-flight request lock per question. A second click
+  cannot abort and replace the first evaluation request.
+- The backend already rejects concurrent evaluations for the same question
+  with HTTP 409; a regression test now verifies that only one Ollama call
+  can run for that question at a time.
+- Other questions can still be evaluated independently.
+
+Apply:
+1. Back up your project folder.
+2. Extract this ZIP into the project root and allow matching files to be
+   replaced.
+3. Run: npm test
+4. Run: npm start
+
+This patch does not include or overwrite .env, package.json, package-lock.json,
+node_modules, uploaded resumes, or application data.

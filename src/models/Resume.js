@@ -78,6 +78,9 @@ const resumeSchema = new Schema({
   parsedResume: { type: parsedResumeSchema, required: true },
   analysis: { type: analysisSchema, required: true },
   resumeContext: { type: contextSchema, required: true },
+  // Practice data is keyed by category so generated sets, candidate answers,
+  // and Ollama evaluations survive navigation and browser reloads.
+  practice: { type: Schema.Types.Mixed, default: () => ({ categories: {} }) },
 }, { timestamps: true, bufferCommands: false });
 
 resumeSchema.index({ userId: 1, createdAt: -1 });

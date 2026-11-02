@@ -12,6 +12,8 @@ The application uses a local [Ollama](https://ollama.com/) model for AI analysis
 - **Resume analysis:** uses Ollama when available and labels the rule-based fallback when it is used.
 - **Interview context:** builds a structured candidate profile using the parsed resume, analysis, interview type and target role.
 - **Category-based questions:** generates six questions for a selected category, validates the result and returns a retryable error if generation fails. It does not silently present fallback questions as AI-generated.
+- **Answer practice and evaluation:** provides a text answer field for every generated question. Ollama evaluates each answer on a 1–10 scale in 0.5-point increments and returns feedback, strengths and improvement suggestions.
+- **Saved practice progress:** generated question sets, submitted answers and evaluations are stored with the owned resume in MongoDB and remain available while switching categories.
 - **Authentication:** supports signup and login using bcrypt password hashing and JWT bearer tokens.
 - **MongoDB persistence:** stores user accounts and owner-associated resume information.
 - **Browser interface and CLI demo:** includes a web UI and a command-line resume-processing demo.
@@ -32,7 +34,7 @@ The application uses a local [Ollama](https://ollama.com/) model for AI analysis
 
 - Node.js 18 or later (Node.js 20 LTS is recommended).
 - A MongoDB instance and connection string.
-- Ollama and the configured model for AI question generation.
+- Ollama and the configured model for resume analysis, question generation and answer evaluation.
 - Poppler's `pdftotext` command is optional; it provides a secondary PDF text-extraction path.
 
 ## Run locally
@@ -60,6 +62,7 @@ Do not overwrite an existing `.env` file. Open it and configure at least:
 | `MONGODB_URI` | Your MongoDB connection string |
 | `MONGODB_DB_NAME` | Application database name; defaults to `mock_interview_platform` |
 | `JWT_SECRET` | A unique, randomly generated secret |
+| `ANSWER_EVALUATION_TIMEOUT_MS` | Maximum time for evaluating one answer; defaults to 120000 ms |
 | `DEMO_USER_EMAIL` | Email for the initial demo account |
 | `DEMO_USER_PASSWORD` | A strong, unique demo password |
 | `DEMO_USER_NAME` | Display name for the initial demo account |
@@ -125,8 +128,10 @@ The health endpoint is public. Authentication and resume endpoints are listed be
 | POST | `/api/resume/upload` | Upload and process a PDF resume |
 | GET | `/api/resume/:id` | Retrieve the parsed resume and analysis |
 | GET | `/api/resume/:id/context` | Retrieve the structured interview context |
+| GET | `/api/resume/:id/practice` | Restore generated category questions, answers and evaluations |
 | GET | `/api/resume/:id/questions` | Generate the legacy mixed-question demo set |
 | POST | `/api/resume/:id/questions/:category` | Generate six questions for one category |
+| POST | `/api/resume/:id/questions/:category/:questionIndex/evaluate` | Evaluate one text answer using Ollama and save the result |
 
 Resume endpoints require an `Authorization: Bearer <token>` header. The category parameter accepts one of the six category IDs defined in `src/services/questionCategories.js`.
 
@@ -138,6 +143,33 @@ Available category IDs:
 - `professional_experience`
 - `applied_scenarios`
 - `behavioral_collaboration`
+
+## Answer practice and AI evaluation
+
+After generating a category's six questions, each question displays its own text-answer field and **Evaluate answer** action. Submit answers individually; the application sends the selected question, the answer and relevant non-contact resume context to the configured local Ollama model.
+
+Each successful evaluation displays:
+
+- A score from **1.0 to 10.0**, in **0.5-point increments** (for example, 7.5/10).
+- Written feedback explaining the score.
+- Specific strengths in the response.
+- Actionable points to improve.
+
+The evaluator considers correctness, relevance, reasoning, completeness, clarity and practical application, with criteria adapted to the question category. It is instructed not to reward length alone or assume experience that the candidate has not described. The server validates the returned score and feedback before showing them; malformed or out-of-range model output is rejected rather than displayed as a valid evaluation.
+
+Answers and evaluations are saved in the resume's MongoDB practice data. Switching between categories preserves completed work. If Ollama is temporarily unavailable, the submitted answer is still retained so it can be evaluated again later. Regenerating a category replaces that category's existing question set and its associated answers/evaluations; the browser asks for confirmation before doing so when submitted work exists.
+
+Answers are limited to 8,000 characters. The current implementation accepts typed text; speech capture and speech-to-text are not included in this version.
+
+The evaluation request accepts a JSON body such as:
+
+```json
+{
+  "answer": "I would test the endpoint with valid and invalid inputs, verify the status codes and response body, and check authentication and boundary cases."
+}
+```
+
+The response contains the submitted answer and an `evaluation` object with `score`, `feedback`, `strengths`, `improvements`, `model` and `evaluatedAt`. The score is a JSON number and can be a half point (for example, `8.5`).
 
 ## Data handling
 

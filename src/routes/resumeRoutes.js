@@ -27,7 +27,9 @@ const router = express.Router();
 router.post('/upload', upload.single('resume'), resumeController.uploadResume);
 router.get('/:id', resumeController.getResume);
 router.get('/:id/context', resumeController.getContext);
+router.get('/:id/practice', resumeController.getPractice);
 router.get('/:id/questions', resumeController.getQuestions);
 router.post('/:id/questions/:category', resumeController.generateCategoryQuestions);
+router.post('/:id/questions/:category/:questionIndex/evaluate', resumeController.evaluateAnswer);
 
 module.exports = router;

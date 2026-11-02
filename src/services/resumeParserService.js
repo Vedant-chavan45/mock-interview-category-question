@@ -24,27 +24,59 @@
 // Section header aliases we recognise. Order matters only for readability;
 // detection itself is order-independent (we find every header first, then
 // slice between whichever two are closest together in the document).
+
 const SECTION_ALIASES = {
   SKILLS: [
-    'technical skills', 'core skills', 'skills & tools', 'skills and tools',
-    'key skills', 'skills', 'technologies', 'tech stack',
+    'technical skills',
+    'core skills',
+    'skills & tools',
+    'skills and tools',
+    'key skills',
+    'skills',
+    'technologies',
+    'tech stack',
+    'core competencies',
+    'professional competencies',
+    'areas of expertise',
+    'key competencies',
   ],
+
   PROJECTS: [
-    'academic projects', 'personal projects', 'key projects', 'major projects',
+    'academic projects',
+    'personal projects',
+    'key projects',
+    'major projects',
     'projects',
   ],
+
   EXPERIENCE: [
-    'work experience', 'professional experience', 'internship experience',
-    'internships', 'experience', 'employment history',
+    'work experience',
+    'professional experience',
+    'internship experience',
+    'internships',
+    'experience',
+    'employment history',
+    'relevant experience',
+    'professional background',
+    'work history',
+    'employment experience',
   ],
+
   EDUCATION: [
-    'academic background', 'academic qualifications', 'educational qualifications',
+    'academic background',
+    'academic qualifications',
+    'educational qualifications',
     'education',
   ],
+
   CERTIFICATIONS: [
-    'certifications', 'certificates', 'licenses & certifications', 'certification',
+    'certifications',
+    'certificates',
+    'licenses & certifications',
+    'certification',
   ],
 };
+
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 const PHONE_RE = /(\+?\d{1,3}[-.\s]?)?\(?\d{3,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/;
@@ -283,28 +315,32 @@ function getEntryBlocks(sectionText, noBulletCap, isHeading) {
 // ---------------------------------------------------------------------------
 // extractSkills
 // ---------------------------------------------------------------------------
+
 function extractSkills(sectionText) {
   if (!sectionText) return [];
 
   const tokens = sectionText
     .split(/\n|,|•|\||;/)
     .map((t) => t.replace(/^[-*•\s]+/, '').trim())
-    .filter((t) => t.length > 0 && t.length < 40)
-    // drop category labels like "Languages:" that sometimes prefix a line
+    .filter((t) => t.length > 0 && t.length < 100)
     .map((t) => t.replace(/^[A-Za-z &/]+:\s*/, ''))
     .flatMap((t) => (t.includes(':') ? t.split(':').pop() : t))
     .flatMap((t) => t.split(/,/))
     .map((t) => t.trim())
-    .filter((t) => t.length > 1 && t.length < 30);
+    .filter((t) => t.length > 1 && t.length < 100);
 
-  // De-duplicate case-insensitively while preserving first-seen casing.
   const seen = new Map();
+
   for (const t of tokens) {
     const key = t.toLowerCase();
-    if (!seen.has(key)) seen.set(key, t);
+    if (!seen.has(key)) {
+      seen.set(key, t);
+    }
   }
+
   return Array.from(seen.values());
 }
+
 
 // ---------------------------------------------------------------------------
 // extractProjects

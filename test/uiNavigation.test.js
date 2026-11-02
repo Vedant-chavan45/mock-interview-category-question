@@ -74,7 +74,8 @@ test('category switching renders only that category set and does not discard oth
   assert.doesNotMatch(selector, /fetch\(|generateCategory\(/);
   assert.match(app, /const record = selected && state\.categoryQuestions\[selected\.id\]/);
   assert.match(app, /categoryQuestionList'\)\.replaceChildren\(\)/);
-  assert.match(app, /record\.questions\.forEach\(\(question\) =>/);
+  assert.match(app, /record\.questions\.forEach\(\(question, index\) =>/);
+  assert.match(app, /renderQuestionPractice\(item, question, index, selected\.id\)/);
   assert.match(app, /state\.categoryQuestions = Object\.create\(null\)/);
   assert.match(app, /state\.categoryQuestions\[categoryId\] =/);
 });
@@ -149,4 +150,47 @@ test('Resume Workspace summary hides only in Step 3 and returns when navigating 
   assert.match(navigation, /\$\('questionsPanel'\)\.hidden = !inQuestions/);
   assert.match(app, /function selectTab\(index, focus = false\)[\s\S]*?setStep\(1\)/);
   assert.match(app, /\$\('backToAnalysis'\)\.addEventListener\('click', \(\) => \{ selectTab\(0\)/);
+});
+
+
+test('each generated question renders a text answer field and an individual evaluation result', () => {
+  assert.match(app, /textarea\.maxLength = 8000/);
+  assert.match(app, /answerLabel\.htmlFor = fieldId/);
+  assert.match(app, /Evaluate answer/);
+  assert.match(app, /renderEvaluation\(answerPanel, question\.evaluation\)/);
+  assert.match(app, /evaluation\.score/);
+  assert.match(app, /evaluation\.feedback/);
+  assert.match(app, /evaluation\.strengths/);
+  assert.match(app, /evaluation\.improvements/);
+});
+
+
+test('an evaluating question locks its own evaluate button and exposes accessible busy state', () => {
+  const renderer = app.match(/function renderQuestionPractice\([\s\S]*?(?=function renderCategoryInterface\b)/)?.[0] || '';
+  assert.ok(renderer, 'Expected per-question answer renderer');
+  assert.match(renderer, /answerRequests\.has\(key\)/);
+  assert.match(renderer, /button\.disabled = busy \|\| !state\.authenticated/);
+  assert.match(renderer, /button\.setAttribute\('aria-busy', String\(busy\)\)/);
+  assert.match(renderer, /Evaluating with Ollama/);
+  const evaluate = app.match(/async function evaluateAnswer\([\s\S]*?(?=async function loadPractice\b)/)?.[0] || '';
+  assert.match(evaluate, /if \(state\.answerBusy\[key\] \|\| answerRequests\.has\(key\)\) return/);
+  assert.doesNotMatch(evaluate, /answerRequests\.get\(key\)\?\.abort\(\)/);
+  assert.match(css, /\.answer-evaluate-button\.is-evaluating::before/);
+  assert.match(css, /prefers-reduced-motion:\s*reduce/);
+});
+
+test('answers are submitted individually and saved practice is restored for the resume', () => {
+  assert.match(app, /questions\/\$\{encodeURIComponent\(categoryId\)\}\/\$\{questionIndex\}\/evaluate/);
+  assert.match(app, /body: JSON\.stringify\(\{ answer \}\)/);
+  assert.match(app, /question\.answer = data\.answer/);
+  assert.match(app, /question\.evaluation = data\.evaluation/);
+  assert.match(app, /\/practice`/);
+  assert.match(app, /state\.categoryQuestions\[categoryId\] = categoryRecord/);
+});
+
+test('regenerating a category warns before replacing submitted answers and evaluations', () => {
+  const generator = app.match(/async function generateCategory\([\s\S]*?(?=async function evaluateAnswer\b)/)?.[0] || '';
+  assert.match(generator, /hasSubmittedWork/);
+  assert.match(generator, /window\.confirm/);
+  assert.match(generator, /categoryHasActiveAnswerEvaluations\(categoryId\)/);
 });
