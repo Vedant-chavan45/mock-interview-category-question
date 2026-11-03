@@ -11,9 +11,9 @@ The application uses a local [Ollama](https://ollama.com/) model for AI analysis
 - **Resume extraction and parsing:** extracts text and identifies contact details, skills, projects, experience, education and certifications.
 - **Resume analysis:** uses Ollama when available and labels the rule-based fallback when it is used.
 - **Interview context:** builds a structured candidate profile using the parsed resume, analysis, interview type and target role.
-- **Category-based questions:** generates six questions for a selected category, validates the result and returns a retryable error if generation fails. It does not silently present fallback questions as AI-generated.
+- **Category-based questions:** generates six questions for a selected category and returns a retryable error if generation or quality review fails. Technical Skills & Concepts uses a dynamically classified skill plan, subtopic rotation and an independent quality review; required skills are assessment targets, not claims about resume experience. It does not silently present fallback questions as AI-generated.
 - **Answer practice and evaluation:** provides a text answer field for every generated question. Ollama evaluates each answer on a 1–10 scale in 0.5-point increments and returns feedback, strengths and improvement suggestions.
-- **Saved practice progress:** generated question sets, submitted answers and evaluations are stored with the owned resume in MongoDB and remain available while switching categories.
+- **Saved practice progress:** generated question sets, submitted answers, evaluations and bounded skill/subtopic coverage history are stored with the owned resume in MongoDB and remain available while switching categories. Regeneration prioritizes required skills that have not been assessed yet.
 - **Authentication:** supports signup and login using bcrypt password hashing and JWT bearer tokens.
 - **MongoDB persistence:** stores user accounts and owner-associated resume information.
 - **Browser interface and CLI demo:** includes a web UI and a command-line resume-processing demo.
@@ -85,7 +85,7 @@ Install and start Ollama, then download the configured model:
 ollama pull llama3.2:latest
 ```
 
-The default Ollama URL is `http://localhost:11434`. Resume analysis can use its labelled rule-based fallback if Ollama is unavailable. The six category-based question workflows require Ollama to return a valid response.
+The default Ollama URL is `http://localhost:11434`. Resume analysis can use its labelled rule-based fallback if Ollama is unavailable. Category generation requires the configured local model: technical question generation makes bounded planning, writing and independent review calls, and returns an error rather than saving an unreviewed or invalid set.
 
 ### 4. Run tests and start the application
 

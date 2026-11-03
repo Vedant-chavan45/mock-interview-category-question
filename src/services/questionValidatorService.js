@@ -4,6 +4,8 @@ const MAX_BASED_ON_LENGTH = 120;
 const TYPES = new Set(['technical', 'project', 'behavioral', 'experience']);
 const { QUESTION_COUNT_PER_CATEGORY } = require('./questionCategories');
 const { buildCategoryBlueprint, contextData } = require('./categoryBlueprintService');
+const { validateTechnicalQuestion } = require('./questionQualityService');
+const { makeCoverageSignature } = require('./skillAssessmentPlanner');
 const text = (v) => typeof v === 'string' ? v.trim() : '';
 const list = (v) => Array.isArray(v) ? v : [];
 const object = (v) => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
@@ -161,6 +163,7 @@ function provenanceIsValid(slot, resumeContext) {
   const { kind, recordIndex, field, itemIndex } = slot.evidence.provenance;
   if (kind === 'role_fundamental' || kind === 'role_scenario') return slot.evidence.anchor === c.targetRole;
   if (kind === 'general_behavioral_prompt') return slot.evidence.anchor === 'general';
+  if (kind === 'required_skill_assessment') return field === 'requiredSkillset' && c.requiredSkillset.some((skill) => skill === slot.evidence.anchor);
   if (kind === 'missing_resume_skill') return c.skills.length === 0 && !c.projects.some((project) => project.technologies.length);
   if (kind === 'missing_resume_project') return c.projects.length === 0;
   if (kind === 'missing_resume_experience') return !c.experience.length && !c.experienceSummary && !c.projects.length;
@@ -180,13 +183,48 @@ function provenanceIsValid(slot, resumeContext) {
   return false;
 }
 
-function hasUnsupportedTechnology(question, resumeContext) {
+// Required skillset values are interview priorities, not proof of candidate
+// proficiency. They may make a technology eligible to appear in a question,
+// but they are deliberately excluded from resume grounding and evidence IDs.
+function requiredSkillNames(resumeContext, normalizedContext) {
+  const rawContext = object(resumeContext);
+  const normalized = object(normalizedContext);
+  const structured = object(rawContext.structuredEvidence);
+  const candidates = [
+    ...list(normalized.requiredSkillset),
+    ...list(rawContext.requiredSkillset),
+    ...list(structured.requiredSkillset),
+  ];
+  return [...new Set(candidates.map((item) => {
+    if (typeof item === 'string') return text(item);
+    const entry = object(item);
+    return text(entry.name) || text(entry.skill) || text(entry.value);
+  }).filter(Boolean))];
+}
+
+function hasUnsupportedTechnology(question, resumeContext, options = {}) {
   const c = contextData(resumeContext);
   const structuredText = [
     c.targetRole, ...c.skills, ...c.projects.flatMap((project) => [project.title, project.description, ...project.technologies]),
     ...c.experience.flatMap((entry) => [entry.role, entry.organisation, ...entry.responsibilities]),
   ].join(' ');
-  return KNOWN_TECHNOLOGIES.find(([name, pattern]) => pattern.test(question) && !pattern.test(structuredText))?.[0] || '';
+  const requiredSkillsText = options.allowRequiredSkills
+    ? requiredSkillNames(resumeContext, c).join(' ')
+    : '';
+  return KNOWN_TECHNOLOGIES.find(([name, pattern]) => pattern.test(question) &&
+    !pattern.test(structuredText) && !pattern.test(requiredSkillsText))?.[0] || '';
+}
+
+// Technical concept questions may legitimately mention a comparison tool or
+// industry-standard alternative that the candidate did not list. Such a name
+// is NOT evidence of having used it. Reject only language that asserts prior
+// personal experience with the unlisted tool. Project/experience categories
+// retain their stricter grounding requirements below.
+function allegesUndocumentedTechnologyExperience(question, technology) {
+  if (!technology) return false;
+  const priorUse = /\b(?:how did you use|how have you used|when did you use|when have you used|describe (?:how )?you (?:used|implemented|built|deployed|configured)|tell me how you (?:used|implemented|built|deployed)|based on your (?:work|experience|project)|in your (?:previous|past|last|recent) (?:project|role)|from your (?:project|job|internship|experience)|your experience with)\b/i;
+  const claim = /\b(?:your|you)\b.{0,70}\b(?:used|implemented|built|deployed|configured|worked with|experience|project)\b|\b(?:experience|project|implementation)\b.{0,45}\byou(?:r)?\b/i;
+  return priorUse.test(question) || claim.test(question);
 }
 
 function hasUnsupportedExperienceEntity(question, resumeContext) {
@@ -207,9 +245,28 @@ function hasUnsupportedExperienceEntity(question, resumeContext) {
   return '';
 }
 
-// The user-selected category and ordered server-owned blueprint guide the
-// model's six question topics. This validator deliberately does not perform
-// wording, keyword, or sentence-style matching against those topics.
+// Cross-generation duplicate prevention. Match identical wording despite
+// punctuation, and very similar content-token questions without blocking
+// legitimate new questions about the same technology.
+function previousQuestionMatches(current, previous) {
+  const a = normalizedPhrase(current);
+  const b = normalizedPhrase(previous);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const ignore = new Set(['how', 'would', 'you', 'what', 'when', 'where', 'which', 'why', 'the',
+    'a', 'an', 'in', 'on', 'for', 'of', 'to', 'your', 'this', 'that', 'and', 'or', 'do', 'does',
+    'can', 'could', 'if', 'with', 'using', 'use', 'explain', 'tell', 'me', 'about']);
+  const tokens = (value) => new Set(value.split(' ').filter((part) => part.length > 2 && !ignore.has(part)));
+  const x = tokens(a);
+  const y = tokens(b);
+  if (Math.min(x.size, y.size) < 3) return false;
+  const intersection = [...x].filter((word) => y.has(word)).length;
+  const union = new Set([...x, ...y]).size;
+  return intersection / union >= 0.82;
+}
+
+// The blueprint owns topics and evidence. Technical questions also pass a
+// topicality gate that requires a substantive planned subtopic signal.
 function validateGeneratedCategoryQuestions(result, resumeContext, interviewPlan, category, blueprint = buildCategoryBlueprint(resumeContext, category.id, interviewPlan), options = {}) {
   const questionCount = Array.isArray(result?.questions) ? result.questions.length : undefined;
   if (!plain(result) || Reflect.ownKeys(result).length !== 1 || !Object.hasOwn(result, 'questions') || !Array.isArray(result.questions)) fail('invalid-envelope', questionCount);
@@ -254,6 +311,17 @@ function validateGeneratedCategoryQuestions(result, resumeContext, interviewPlan
       const similarity = overlap / Math.max(contentTokens.size, previousTokens.length, 1);
       if (similarity >= 0.86) fail('duplicate-question', questionCount, index);
     }
+    if (options.previousQuestions?.some((previous) => previousQuestionMatches(cleanQuestion, previous))) {
+      fail('previously-asked-question', questionCount, index);
+    }
+    if (category.id === 'technical_concepts') {
+      const qualityIssue = validateTechnicalQuestion(cleanQuestion, slot, blueprint, resumeContext);
+      if (qualityIssue) fail(qualityIssue, questionCount, index);
+      const signature = makeCoverageSignature(slot.primaryAssessmentTarget, slot.subtopic, slot.assessmentObjective);
+      if (slot.coverageSignature && slot.coverageSignature !== signature) fail('invalid-assessment-metadata', questionCount, index);
+      if (list(options.previousAssessments).some((entry) => entry?.coverageSignature &&
+          entry.coverageSignature === slot.coverageSignature)) fail('previously-assessed-objective', questionCount, index);
+    }
     seen.add([...contentTokens].sort().join(' '));
 
     const suppliedEvidenceIds = [...new Set(item.evidenceIds)];
@@ -271,8 +339,18 @@ function validateGeneratedCategoryQuestions(result, resumeContext, interviewPlan
     // based on trigger words or narrow wording patterns: natural paraphrases and
     // both past-experience and hypothetical collaboration questions are valid.
     if (['domain_fundamentals', 'technical_concepts', 'project_deep_dive', 'professional_experience', 'applied_scenarios'].includes(category.id)) {
-      const unsupportedTechnology = hasUnsupportedTechnology(cleanQuestion, resumeContext);
-      if (unsupportedTechnology) fail('unsupported-technology', questionCount, index);
+      // Required skills can guide fundamentals, technical-concept, and hypothetical
+      // scenario questions. They cannot be used to imply prior project or job experience.
+      const allowRequiredSkills = ['domain_fundamentals', 'technical_concepts', 'applied_scenarios'].includes(category.id);
+      const unsupportedTechnology = hasUnsupportedTechnology(cleanQuestion, resumeContext, { allowRequiredSkills });
+      // Technical questions assess knowledge, not past resume experience.
+      // "How does PyTorch compare with TensorFlow?" must be allowed when
+      // PyTorch is required, even if TensorFlow is not on the candidate's CV.
+      // "How did you use TensorFlow in your project?" is still a false claim.
+      if (unsupportedTechnology && (category.id !== 'technical_concepts' ||
+          allegesUndocumentedTechnologyExperience(cleanQuestion, unsupportedTechnology))) {
+        fail('unsupported-technology', questionCount, index);
+      }
     }
     if (category.id === 'professional_experience' && hasUnsupportedExperienceEntity(cleanQuestion, resumeContext)) {
       fail('unsupported-past-claim', questionCount, index);
@@ -296,6 +374,22 @@ function validateGeneratedCategoryQuestions(result, resumeContext, interviewPlan
       basedOn: shortAnchor(slot.evidence.anchor, MAX_BASED_ON_LENGTH),
       evidenceIds: suppliedEvidenceIds,
       evidenceProvenance: { ...slot.evidence.provenance },
+      ...(category.id === 'technical_concepts' ? {
+        ...(slot.primaryRequiredSkill ? { primaryRequiredSkill: slot.primaryRequiredSkill } : {}),
+        ...(slot.primaryResumeSkill ? { primaryResumeSkill: slot.primaryResumeSkill } : {}),
+        primaryAssessmentTarget: slot.primaryAssessmentTarget,
+        relatedRequiredSkills: list(slot.relatedRequiredSkills).slice(),
+        subtopic: slot.subtopic,
+        assessmentObjective: slot.assessmentObjective,
+        questionStyle: slot.questionStyle,
+        difficulty: slot.difficulty,
+        assessmentCriteria: list(slot.assessmentCriteria).slice(),
+        skillKind: slot.skillKind,
+        skillConfidence: slot.skillConfidence,
+        assessmentProvenance: slot.assessmentProvenance,
+        coverageSignature: slot.coverageSignature,
+        coverageFallback: slot.coverageFallback,
+      } : {}),
     };
     } catch (error) {
       if (!options.collectErrors || error.questionIndex !== index) throw error;

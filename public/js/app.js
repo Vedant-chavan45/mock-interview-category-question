@@ -4,20 +4,75 @@
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const state = { token: '', authenticated: false, leaving: false, file: null, current: null,
     uploadBusy: false, categoryBusy: '', categoryWorkflowEntered: false, selectedCategory: '',
-    categoryQuestions: Object.create(null), categoryErrors: Object.create(null), categoryInsufficient: Object.create(null),
+    categoryQuestions: Object.create(null), questionPositions: Object.create(null), categoryErrors: Object.create(null), categoryInsufficient: Object.create(null),
     answerDrafts: Object.create(null), answerBusy: Object.create(null), answerErrors: Object.create(null),
     practiceLoading: false, practiceLoadError: '', practiceLoadedFor: '',
+    requiredSkillset: [],
     uploadId: 0, questionId: 0, authId: 0 };
   let authRequest, uploadRequest, questionRequest;
   const answerRequests = new Map();
   const questionCategories = [
     { id: 'domain_fundamentals', label: 'Role & Domain Fundamentals', description: 'Explore core principles and trade-offs that shape the target role and its technical domain.' },
-    { id: 'technical_concepts', label: 'Technical Skills & Concepts', description: 'Assess practical understanding of the skills and technologies evidenced in the resume.' },
+    { id: 'technical_concepts', label: 'Technical Skills & Concepts', description: 'Assess practical understanding of the required skills and technologies for the target role.' },
     { id: 'project_deep_dive', label: 'Project Deep Dive', description: 'Probe real project decisions, individual contributions, constraints and verification.' },
     { id: 'professional_experience', label: 'Professional Experience', description: 'Discuss responsibilities, delivery, challenges and outcomes from the resume.' },
-    { id: 'applied_scenarios', label: 'Applied Technical Scenarios', description: 'Work through realistic hypothetical technical problems using relevant resume skills.' },
+    { id: 'applied_scenarios', label: 'Applied Technical Scenarios', description: 'Work through realistic hypothetical problems relevant to the target role and required skills.' },
     { id: 'behavioral_collaboration', label: 'Behavioral & Collaboration', description: 'Explore communication, collaboration, feedback, ownership and learning.' },
   ];
+  const ROLE_OPTIONS = [
+    'Backend Developer',
+    'Full Stack Developer',
+    'Frontend Developer',
+    'QA Engineer / Software Tester',
+    'C++ / Systems / Embedded Engineer',
+    'AI / ML Engineer',
+    'Data Analyst / Data Engineer / SQL Developer',
+    'Software Engineer (General)',
+    'Software Engineer Intern',
+    'Other (type a custom job title)',
+  ];
+  const SKILL_OPTIONS = {
+    backend: [
+      'Node.js', 'Express.js', 'REST APIs', 'API Design', 'SQL', 'MySQL', 'PostgreSQL',
+      'MongoDB', 'Database Design', 'Authentication & Authorization', 'API Security',
+      'Debugging', 'Performance Optimization', 'Automated Testing', 'Git',
+    ],
+    fullstack: [
+      'HTML', 'CSS', 'JavaScript', 'TypeScript', 'React', 'Node.js', 'Express.js',
+      'REST APIs', 'SQL', 'MySQL', 'MongoDB', 'Authentication', 'API Integration',
+      'Responsive Design', 'Testing', 'Git',
+    ],
+    frontend: [
+      'HTML', 'CSS', 'JavaScript', 'TypeScript', 'React', 'Responsive Design',
+      'Accessibility', 'State Management', 'API Integration', 'Browser Debugging',
+      'Frontend Performance', 'Cross-browser Testing',
+    ],
+    qa: [
+      'Manual Testing', 'Test Case Design', 'Test Planning', 'Bug Reporting',
+      'Regression Testing', 'API Testing', 'SQL', 'Postman', 'Selenium',
+      'Playwright', 'Automation Testing', 'Agile', 'Test Data Design',
+    ],
+    systems: [
+      'C++', 'Object-Oriented Programming', 'Data Structures & Algorithms',
+      'Memory Management', 'Operating Systems', 'Concurrency', 'Linux',
+      'Pointers', 'STL', 'Debugging', 'Performance Optimization',
+    ],
+    'ai-ml': [
+      'Python', 'Machine Learning Fundamentals', 'Data Preprocessing', 'Pandas',
+      'NumPy', 'Model Evaluation', 'Scikit-learn', 'TensorFlow', 'PyTorch',
+      'Feature Engineering', 'Model Deployment',
+    ],
+    data: [
+      'SQL', 'Advanced Excel', 'Python', 'Pandas', 'Data Cleaning', 'ETL',
+      'Data Quality', 'Data Modeling', 'Database Design', 'Power BI', 'Tableau',
+      'Data Visualization',
+    ],
+    generic: [
+      'Problem Solving', 'Object-Oriented Programming', 'Data Structures & Algorithms',
+      'DBMS', 'SQL', 'Debugging', 'Software Testing', 'REST API Fundamentals',
+      'Git', 'Communication',
+    ],
+  };
   const tabs = ['tabOverview', 'tabDetails'].map($);
   const panels = ['overviewPanel', 'detailsPanel'].map($);
   const text = value => typeof value === 'string' || typeof value === 'number' ? String(value) : '';
@@ -25,10 +80,11 @@
   const records = value => Array.isArray(value) ? value.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
   const answerKey = (categoryId, index) => `${categoryId}:${index}`;
   const categoryHasActiveAnswerEvaluations = categoryId => Object.keys(state.answerBusy).some(key => key.startsWith(`${categoryId}:`) && state.answerBusy[key]);
+
   // Untrusted resume/model data is rendered exclusively as text nodes.
   function node(tag, content = '', className = '') {
     const el = document.createElement(tag); el.textContent = text(content);
-    if (className) el.className = className; // Class names are internal constants only.
+    if (className) el.className = className;
     return el;
   }
   function status(id, message = '', kind = '') {
@@ -92,9 +148,12 @@
   }
   $('retryAccess').addEventListener('click', verifyAccess);
   $('logoutBtn').addEventListener('click', () => leave());
+
   function syncControls() {
+    const targetRoleReady = Boolean($('targetRole')?.value.trim());
+    const skillsReady = state.requiredSkillset.length > 0;
     $('setupFields').disabled = state.uploadBusy || !state.authenticated;
-    $('submitBtn').disabled = !state.file || state.uploadBusy || !state.authenticated;
+    $('submitBtn').disabled = !state.file || !targetRoleReady || !skillsReady || state.uploadBusy || !state.authenticated;
     $('submitBtn').textContent = state.uploadBusy ? 'Analyzing resume...' : 'Analyze resume';
     $('setupForm').setAttribute('aria-busy', String(state.uploadBusy));
     $('processing').hidden = !state.uploadBusy;
@@ -159,16 +218,18 @@
   function renderQuestionPractice(item, question, index, categoryId) {
     const key = answerKey(categoryId, index);
     const fieldId = `answer-${categoryId}-${index}`;
-    // The state flag drives rendering; the request Map is an additional lock so
-    // an already-running request cannot be replaced by a second click.
     const busy = Boolean(state.answerBusy[key] || answerRequests.has(key));
     const answer = Object.hasOwn(state.answerDrafts, key)
       ? state.answerDrafts[key] : text(question.answer);
 
-    item.append(node('p', question.question, 'question-body'));
+    item.append(node('span', `QUESTION ${String(index + 1).padStart(2, '0')}`, 'question-kicker'));
+    const questionBody = node('p', question.question, 'question-body');
+    questionBody.id = `question-title-${categoryId}-${index}`;
+    questionBody.tabIndex = -1;
+    item.append(questionBody);
     const meta = node('div', '', 'question-meta');
     if (text(question.type)) meta.append(node('span', question.type, 'badge'));
-    if (text(question.basedOn)) meta.append(node('p', `Based on: ${text(question.basedOn)}`));
+    if (text(question.basedOn)) meta.append(node('p', `Focus · ${text(question.basedOn)}`));
     item.append(meta);
 
     const answerPanel = node('section', '', 'answer-panel');
@@ -178,7 +239,7 @@
     const textarea = document.createElement('textarea');
     textarea.id = fieldId;
     textarea.name = fieldId;
-    textarea.rows = 5;
+    textarea.rows = 4;
     textarea.maxLength = 8000;
     textarea.placeholder = 'Type your answer here. Explain your approach, reasoning and any relevant example…';
     textarea.value = answer;
@@ -216,13 +277,107 @@
     item.append(answerPanel);
   }
 
+  // A question's position belongs to its category, not to its DOM element.
+  // Rendering is deliberately single-question so that answers/evaluations are
+  // not lost when users move between questions or switch categories.
+  function currentQuestionIndex(categoryId, questionCount) {
+    const saved = state.questionPositions[categoryId];
+    return Number.isInteger(saved) && saved >= 0 && saved < questionCount ? saved : 0;
+  }
+
+  function showQuestion(categoryId, index) {
+    const record = state.categoryQuestions[categoryId];
+    if (!isOllamaResult(record) || !Number.isInteger(index) || index < 0 || index >= record.questions.length) return;
+    state.questionPositions[categoryId] = index;
+    renderCategoryInterface();
+    // Explicit navigation moves focus with the displayed question. Merely
+    // receiving an evaluation result does not steal keyboard focus.
+    const displayed = $(`question-title-${categoryId}-${index}`);
+    if (displayed) {
+      displayed.focus({ preventScroll: true });
+      displayed.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    }
+  }
+
+  function questionProgressState(categoryId, question, index) {
+    const key = answerKey(categoryId, index);
+    if (question.evaluation && Number.isFinite(question.evaluation.score)) return 'evaluated';
+    const value = Object.hasOwn(state.answerDrafts, key) ? state.answerDrafts[key] : question.answer;
+    return text(value).trim() ? 'answered' : 'not answered';
+  }
+
+  function renderQuestionNavigation(container, categoryId, questions, index, isBottom = false) {
+    container.replaceChildren();
+    const count = questions.length;
+    const progress = questions.filter((question, position) =>
+      questionProgressState(categoryId, question, position) !== 'not answered').length;
+
+    if (isBottom) {
+      // Keep movement in one consistent place; the top area is reserved for progress and jump links.
+      const previous = node('button', '←  Previous', 'question-page-button');
+      previous.type = 'button';
+      previous.disabled = index === 0;
+      previous.setAttribute('aria-label', 'Previous question');
+      previous.addEventListener('click', () => showQuestion(categoryId, index - 1));
+
+      const position = node('span', `${index + 1} / ${count}`, 'question-page-count');
+      position.setAttribute('aria-label', `Question ${index + 1} of ${count}`);
+
+      const next = node('button', 'Next  →', 'question-page-button question-page-next');
+      next.type = 'button';
+      next.disabled = index === count - 1;
+      next.setAttribute('aria-label', 'Next question');
+      next.addEventListener('click', () => showQuestion(categoryId, index + 1));
+      container.append(previous, position, next);
+      return;
+    }
+
+    const overview = node('div', '', 'question-navigation-overview');
+    const heading = node('div', '', 'question-navigation-heading');
+    const eyebrow = node('span', 'INTERVIEW PROGRESS', 'question-navigation-eyebrow');
+    const title = node('strong', `Question ${index + 1} of ${count}`, 'question-navigation-title');
+    heading.append(eyebrow, title);
+    const saved = node('span', `${progress} of ${count} answered`, 'question-navigation-saved');
+    overview.append(heading, saved);
+
+    const progressTrack = node('div', '', 'question-navigation-track');
+    progressTrack.setAttribute('role', 'progressbar');
+    progressTrack.setAttribute('aria-label', 'Current question in this set');
+    progressTrack.setAttribute('aria-valuemin', '0');
+    progressTrack.setAttribute('aria-valuemax', String(count));
+    progressTrack.setAttribute('aria-valuenow', String(index + 1));
+    const progressFill = node('div', '', 'question-navigation-track-fill');
+    progressFill.style.width = `${(index + 1) / count * 100}%`;
+    progressTrack.append(progressFill);
+
+    const jumpRow = node('div', '', 'question-jump-row');
+    const jumpLabel = node('span', 'Go to question', 'question-jump-label');
+    const jump = node('div', '', 'question-page-numbers');
+    jump.setAttribute('role', 'group');
+    jump.setAttribute('aria-label', 'Jump to a question');
+    questions.forEach((question, position) => {
+      const status = questionProgressState(categoryId, question, position);
+      const control = node('button', String(position + 1), 'question-number-button' +
+        (position === index ? ' is-current' : '') +
+        (status === 'evaluated' ? ' is-evaluated' : status === 'answered' ? ' is-answered' : ''));
+      control.type = 'button';
+      control.setAttribute('aria-label', `Question ${position + 1}, ${status}`);
+      control.setAttribute('title', `Question ${position + 1} — ${status}`);
+      if (position === index) control.setAttribute('aria-current', 'step');
+      control.addEventListener('click', () => showQuestion(categoryId, position));
+      jump.append(control);
+    });
+    jumpRow.append(jumpLabel, jump);
+    container.append(overview, progressTrack, jumpRow);
+  }
+
   function renderCategoryInterface() {
     const checklist = $('categoryChecklist');
     if (!checklist) return;
     const snapshot = state.current?.snapshot;
     $('questionContext').textContent = [
       snapshot?.targetRole,
-      snapshot?.interviewType && `${snapshot.interviewType} interview`,
+      snapshot?.requiredSkillset?.length && `Required skills: ${snapshot.requiredSkillset.join(', ')}`,
     ].filter(Boolean).join(' · ') || 'Your current resume and interview context';
     checklist.replaceChildren();
     let preparedCount = 0;
@@ -265,7 +420,28 @@
     const hasQuestions = isOllamaResult(record);
     $('selectedCategoryTitle').textContent = selected?.label || 'Select a question category';
     $('selectedCategoryDescription').textContent = selected?.description || 'Choose a category to view its workspace.';
-    $('categoryQuestionList').replaceChildren(); $('categorySource').replaceChildren();
+    const questionList = $('categoryQuestionList');
+    // Navigation is created dynamically so existing index.html remains unchanged.
+    let questionNavTop = $('questionNavigationTop');
+    let questionNavBottom = $('questionNavigationBottom');
+    if (!questionNavTop) {
+      questionNavTop = node('nav', '', 'question-pagination question-pagination-top');
+      questionNavTop.id = 'questionNavigationTop';
+      questionNavTop.setAttribute('aria-label', 'Question navigation and quick jump');
+      questionList.before(questionNavTop);
+    }
+    if (!questionNavBottom) {
+      questionNavBottom = node('nav', '', 'question-pagination question-pagination-bottom');
+      questionNavBottom.id = 'questionNavigationBottom';
+      questionNavBottom.setAttribute('aria-label', 'Previous and next question');
+      questionList.after(questionNavBottom);
+    }
+    questionList.replaceChildren();
+    questionNavTop.replaceChildren();
+    questionNavBottom.replaceChildren();
+    questionNavTop.hidden = true;
+    questionNavBottom.hidden = true;
+    $('categorySource').replaceChildren();
     $('selectedCategoryStatus').replaceChildren();
     $('selectedCategoryStatus').className = 'category-workspace-status';
     $('selectedCategoryError').hidden = true;
@@ -337,11 +513,30 @@
         if (m.cacheHit) details.push('session cache');
         $('categorySource').append(node('p', details.join(' · '), 'helper'));
       }
-      record.questions.forEach((question, index) => {
-        const item = node('li', '', 'question-practice-item');
-        renderQuestionPractice(item, question, index, selected.id);
-        $('categoryQuestionList').append(item);
-      });
+      if (Number.isSafeInteger(record.generationNumber) && record.generationNumber > 0) {
+        $('categorySource').append(node('p', `Question set ${record.generationNumber}`, 'helper'));
+      }
+      if (selected.id === 'technical_concepts' && Array.isArray(state.current?.snapshot?.requiredSkillset)) {
+        const selectedSkills = state.current.snapshot.requiredSkillset;
+        const assessed = Array.isArray(record.skillsCovered) ? record.skillsCovered :
+          selectedSkills.filter((skill) => record.questions.some((question) =>
+            text(question.question).toLowerCase().includes(skill.toLowerCase())));
+        if (selectedSkills.length) {
+          $('categorySource').append(node('p', `Required skills in this set: ${assessed.length ? assessed.join(', ') : 'none detected'}`, 'helper'));
+          const remaining = selectedSkills.filter((skill) => !assessed.some((item) => item.toLowerCase() === skill.toLowerCase()));
+          if (remaining.length) $('categorySource').append(node('p', `Not in this set (prioritized on regeneration): ${remaining.join(', ')}`, 'helper'));
+        }
+      }
+      const questionIndex = currentQuestionIndex(selected.id, record.questions.length);
+      const question = record.questions[questionIndex];
+      const item = node('li', '', 'question-practice-item');
+      item.value = questionIndex + 1;
+      renderQuestionPractice(item, question, questionIndex, selected.id);
+      questionList.append(item);
+      renderQuestionNavigation(questionNavTop, selected.id, record.questions, questionIndex);
+      renderQuestionNavigation(questionNavBottom, selected.id, record.questions, questionIndex, true);
+      questionNavTop.hidden = false;
+      questionNavBottom.hidden = false;
     }
   }
   async function generateCategory(categoryId) {
@@ -377,7 +572,10 @@
         throw new Error(typeof data.error === 'string' ? data.error : 'No usable questions were returned. Please retry.');
       }
       state.categoryQuestions[categoryId] = { questions: data.questions, source: data.source, model: data.model,
-        metrics: data.metrics, status: data.status };
+        metrics: data.metrics, status: data.status, skillsCovered: data.skillsCovered, generationNumber: data.generationNumber };
+      // A successfully regenerated set starts at question one. Failed
+      // regeneration keeps both the existing set and its current position.
+      state.questionPositions[categoryId] = 0;
       for (let index = 0; index < 6; index += 1) {
         const key = answerKey(categoryId, index);
         delete state.answerDrafts[key]; delete state.answerErrors[key]; delete state.answerBusy[key];
@@ -395,9 +593,6 @@
     const question = record?.questions?.[questionIndex];
     if (!state.current || !isOllamaResult(record) || !question || state.uploadBusy || !state.authenticated || state.leaving) return;
     const key = answerKey(categoryId, questionIndex);
-    // Guard both the visible busy state and the in-flight request slot. This
-    // prevents double-clicks or stale event handlers from starting a second
-    // Ollama evaluation for the same question.
     if (state.answerBusy[key] || answerRequests.has(key)) return;
     const answer = Object.hasOwn(state.answerDrafts, key) ? state.answerDrafts[key] : text(question.answer);
     if (!answer.trim()) {
@@ -415,8 +610,6 @@
     const resumeId = state.current.id;
     const uploadId = state.uploadId;
     const controller = new AbortController();
-    // Never abort-and-replace an active evaluation for the same question.
-    // The first request owns this slot until its finally block releases it.
     answerRequests.set(key, controller);
     state.answerBusy[key] = true;
     delete state.answerErrors[key];
@@ -542,80 +735,314 @@
   function markDraft() {
     if (state.current) $('setupHelp').textContent = 'Changes apply when you analyze again. Current results keep their submitted context.';
   }
-  ['targetRole', 'interviewType'].forEach(id => $(id).addEventListener('input', markDraft));
-  function clearFile(message = '') {
-    state.file = null; $('fileInput').value = '';
-    $('selectedFile').hidden = true; $('fileName').textContent = ''; $('fileSize').textContent = '';
-    $('fileError').textContent = message;
-    $('chooseFile').setAttribute('aria-invalid', String(Boolean(message)));
-    $('setupHelp').textContent = 'Choose a PDF to get started.';
-    $('resumeStepState').textContent = state.current ? 'Previous resume analyzed' : 'Set up your interview';
-    syncControls();
-  }
-  function acceptFiles(files) {
-    if (state.uploadBusy || !state.authenticated || state.leaving || !files.length) return;
-    // Rejecting a replacement clears the selection so an old PDF cannot be submitted silently.
-    clearFile(); status('uploadStatus');
-    if (files.length !== 1) { clearFile('Choose one resume at a time. No file was selected.'); return; }
-    const file = files[0];
-    if (file.type !== 'application/pdf') { clearFile('Choose a PDF file. The previous selection has been cleared.'); return; }
-    if (file.size > MAX_FILE_SIZE) { clearFile('This PDF exceeds 5 MB. Choose a smaller file.'); return; }
-    if (file.size === 0) { clearFile('This file is empty. Choose a PDF containing resume text.'); return; }
-    state.file = file;
-    $('selectedFile').hidden = false; $('fileName').textContent = file.name;
-    $('fileSize').textContent = file.size >= 1024 * 1024 ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : Math.max(1, Math.round(file.size / 1024)) + ' KB';
-    $('setupHelp').textContent = 'Resume selected. Ready to analyze.';
-    $('resumeStepState').textContent = 'Resume selected';
-    status('uploadStatus', 'Resume selected. Review your interview setup, then analyze.');
-    markDraft(); setStep(0); syncControls();
-  }
-  ['chooseFile', 'replaceFile'].forEach(id => $(id).addEventListener('click', () => {
-    if (!state.uploadBusy) { $('fileInput').value = ''; $('fileInput').click(); }
-  }));
-  $('fileInput').addEventListener('change', event => acceptFiles(Array.from(event.target.files)));
-  $('removeFile').addEventListener('click', () => {
-    if (state.uploadBusy) return;
-    clearFile(); status('uploadStatus', 'Local file selection removed. Any saved resume and its results are unchanged.');
-    $('chooseFile').focus();
-  });
-  let dragDepth = 0;
-  $('dropzone').addEventListener('dragenter', event => { event.preventDefault(); if (!state.uploadBusy) { dragDepth++; $('dropzone').classList.add('dragover'); } });
-  $('dropzone').addEventListener('dragover', event => { event.preventDefault(); });
-  $('dropzone').addEventListener('dragleave', event => { event.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; $('dropzone').classList.remove('dragover'); } });
-  $('dropzone').addEventListener('drop', event => {
-    event.preventDefault(); dragDepth = 0; $('dropzone').classList.remove('dragover');
-    acceptFiles(Array.from(event.dataTransfer.files));
-  });
-  // Prevent dropping a file outside the upload area from navigating away.
-  window.addEventListener('dragover', event => { if (Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); });
-  window.addEventListener('drop', event => { if (Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); });
 
-  function empty(parent, message = 'Not detected in this resume') { parent.append(node('p', message, 'empty-text')); }
-  function textList(parent, values, className = 'text-list') {
-    const items = strings(values);
-    if (!items.length) { empty(parent); return; }
-    const list = node('ul', '', className);
-    items.forEach(value => list.append(node('li', value))); parent.append(list);
+  // Target-role and required-skill controls are enhanced from the existing
+  // HTML fields. The role picker is a visible searchable listbox, not a native
+  // datalist (whose popup is browser-dependent and easy to miss).
+  function installInterviewFields() {
+    const roleInput = $('targetRole');
+    const roleField = roleInput?.closest('.field');
+    if (!roleInput || !roleField) throw new Error('Target role field is missing from index.html.');
+
+    roleInput.removeAttribute('list');
+    roleInput.setAttribute('autocomplete', 'off');
+    roleInput.setAttribute('placeholder', 'Choose or search for a target role');
+    roleInput.setAttribute('role', 'combobox');
+    roleInput.setAttribute('aria-autocomplete', 'list');
+    roleInput.setAttribute('aria-haspopup', 'listbox');
+    roleInput.setAttribute('aria-expanded', 'false');
+    roleInput.setAttribute('aria-controls', 'targetRoleOptions');
+    roleInput.value = roleInput.value.trim() || 'Software Engineer (General)';
+
+    const roleWidget = document.createElement('div');
+    roleWidget.className = 'ri-role-dropdown';
+    roleInput.parentNode.insertBefore(roleWidget, roleInput);
+    roleWidget.append(roleInput);
+
+    const roleToggle = document.createElement('button');
+    roleToggle.type = 'button';
+    roleToggle.className = 'ri-role-toggle';
+    roleToggle.textContent = '▾';
+    roleToggle.setAttribute('aria-label', 'Show target role options');
+    roleToggle.setAttribute('aria-controls', 'targetRoleOptions');
+    roleWidget.append(roleToggle);
+
+    const roleList = document.createElement('div');
+    roleList.id = 'targetRoleOptions';
+    roleList.className = 'ri-role-options';
+    roleList.setAttribute('role', 'listbox');
+    roleList.setAttribute('aria-label', 'Available target roles');
+    roleList.hidden = true;
+    roleWidget.append(roleList);
+
+    const oldTypeInput = $('interviewType');
+    const skillField = oldTypeInput?.closest('.field');
+    if (!skillField) throw new Error('Interview type field is missing from index.html.');
+    skillField.replaceChildren();
+    skillField.classList.add('required-skillset-field');
+
+    const label = node('label', 'Required skillset');
+    label.htmlFor = 'requiredSkillSearch';
+    const widget = node('div', '', 'ri-skillset-widget');
+    const selected = node('div', '', 'ri-skillset-selected');
+    selected.id = 'requiredSkillSelected';
+    selected.setAttribute('aria-live', 'polite');
+    selected.setAttribute('aria-label', 'Selected required skills');
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.id = 'requiredSkillSearch';
+    search.name = 'requiredSkillSearch';
+    search.autocomplete = 'off';
+    search.placeholder = 'Search or add a required skill';
+    search.setAttribute('aria-label', 'Search or add a required skill');
+    search.setAttribute('aria-controls', 'requiredSkillSuggestions');
+    search.setAttribute('aria-expanded', 'false');
+    const suggestions = node('div', '', 'ri-skillset-suggestions');
+    suggestions.id = 'requiredSkillSuggestions';
+    suggestions.hidden = true;
+    suggestions.setAttribute('role', 'listbox');
+    const helper = node('p', 'Select the skills the employer expects for this role. You can add more than one or type a custom skill.', 'helper');
+    helper.id = 'requiredSkillHelp';
+    widget.append(selected, search, suggestions);
+    skillField.append(label, widget, helper);
+
+    const style = document.createElement('style');
+    style.textContent = `
+      .ri-role-dropdown { position: relative; display: flex; align-items: stretch; width: 100%; }
+      .ri-role-dropdown > #targetRole { flex: 1 1 auto; min-width: 0; padding-right: 2.6rem; }
+      .ri-role-toggle { position: absolute; top: 50%; right: .35rem; transform: translateY(-50%); min-width: 2rem; min-height: 2rem; border: 0; border-radius: .35rem; background: transparent; color: inherit; cursor: pointer; font-size: 1.2rem; }
+      .ri-role-toggle:hover, .ri-role-toggle:focus-visible { background: var(--surface-subtle, #f1f4f7); outline: 2px solid transparent; }
+      .ri-role-options { position: absolute; z-index: 1000; top: calc(100% + .3rem); left: 0; right: 0; display: grid; gap: .15rem; max-height: 16rem; overflow-y: auto; padding: .35rem; border: 1px solid var(--border-color, #d5dbe3); border-radius: .55rem; background: var(--surface, #fff); box-shadow: 0 .5rem 1.25rem rgba(0,0,0,.14); }
+      .ri-role-options[hidden] { display: none; }
+      .ri-role-option { width: 100%; text-align: left; border: 0; border-radius: .35rem; padding: .55rem .65rem; background: transparent; color: inherit; cursor: pointer; font: inherit; }
+      .ri-role-option:hover, .ri-role-option.is-active, .ri-role-option[aria-selected="true"] { background: var(--surface-subtle, #eef2f6); }
+      .ri-role-empty { margin: .3rem .45rem; color: var(--text-secondary, #667085); font-size: .875rem; }
+      .ri-skillset-widget { display: grid; gap: .55rem; }
+      .ri-skillset-selected { display: flex; flex-wrap: wrap; gap: .45rem; min-height: .25rem; }
+      .ri-skill-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .6rem; border: 1px solid var(--border-color, #d5dbe3); border-radius: 999px; background: var(--surface-subtle, #f4f6f8); font-size: .875rem; }
+      .ri-skill-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-weight: 700; line-height: 1; padding: .05rem .1rem; }
+      .ri-skillset-suggestions { display: grid; gap: .2rem; max-height: 13rem; overflow-y: auto; padding: .35rem; border: 1px solid var(--border-color, #d5dbe3); border-radius: .55rem; background: var(--surface, #fff); }
+      .ri-skillset-suggestions[hidden] { display: none; }
+      .ri-skill-option { width: 100%; text-align: left; border: 0; border-radius: .35rem; padding: .5rem .6rem; background: transparent; color: inherit; cursor: pointer; font: inherit; }
+      .ri-skill-option:hover, .ri-skill-option:focus-visible { background: var(--surface-subtle, #f1f4f7); outline: 2px solid transparent; }
+      .ri-skillset-empty { margin: .25rem .4rem; color: var(--text-secondary, #667085); font-size: .875rem; }
+    `;
+    document.head.append(style);
+
+    let visibleRoleOptions = [];
+    let activeRoleIndex = -1;
+
+    function closeRoleOptions() {
+      roleList.hidden = true;
+      roleInput.setAttribute('aria-expanded', 'false');
+      roleToggle.setAttribute('aria-expanded', 'false');
+      activeRoleIndex = -1;
+    }
+
+    function chooseRole(value) {
+      if (value === 'Other (type a custom job title)') {
+        roleInput.value = '';
+        $('roleHelp').textContent = 'Type the exact job title you are preparing for.';
+        closeRoleOptions();
+        roleInput.focus();
+        markDraft();
+        syncControls();
+        return;
+      }
+      roleInput.value = value;
+      $('roleHelp').textContent = 'Role selected. You can reopen the list to change it.';
+      closeRoleOptions();
+      renderSkillSuggestions(search.value);
+      markDraft();
+      syncControls();
+    }
+
+    function renderRoleOptions(query = '', showAll = false) {
+      roleList.replaceChildren();
+      const normalized = text(query).trim().toLowerCase();
+      visibleRoleOptions = ROLE_OPTIONS.filter(role => showAll || !normalized || role.toLowerCase().includes(normalized));
+      activeRoleIndex = -1;
+      visibleRoleOptions.forEach((role, index) => {
+        const option = node('button', role, 'ri-role-option' + (index === activeRoleIndex ? ' is-active' : ''));
+        option.type = 'button';
+        option.setAttribute('role', 'option');
+        option.setAttribute('aria-selected', String(role === roleInput.value));
+        option.addEventListener('mousedown', event => event.preventDefault());
+        option.addEventListener('click', () => chooseRole(role));
+        roleList.append(option);
+      });
+      if (!visibleRoleOptions.length) {
+        roleList.append(node('p', 'No matching roles. Choose Other to enter a custom job title.', 'ri-role-empty'));
+        activeRoleIndex = -1;
+      }
+      roleList.hidden = false;
+      roleInput.setAttribute('aria-expanded', 'true');
+      roleToggle.setAttribute('aria-expanded', 'true');
+    }
+
+    function moveRoleSelection(direction) {
+      if (roleList.hidden) renderRoleOptions(roleInput.value, !roleInput.value.trim());
+      if (!visibleRoleOptions.length) return;
+      activeRoleIndex = activeRoleIndex < 0
+        ? (direction > 0 ? 0 : visibleRoleOptions.length - 1)
+        : (activeRoleIndex + direction + visibleRoleOptions.length) % visibleRoleOptions.length;
+      const options = roleList.querySelectorAll('.ri-role-option');
+      options.forEach((option, index) => option.classList.toggle('is-active', index === activeRoleIndex));
+      options[activeRoleIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+
+    roleInput.addEventListener('focus', () => renderRoleOptions('', true));
+    roleInput.addEventListener('click', () => {
+      if (roleList.hidden) renderRoleOptions('', true);
+    });
+    roleInput.addEventListener('input', () => renderRoleOptions(roleInput.value));
+    roleInput.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveRoleSelection(1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveRoleSelection(-1);
+      } else if (event.key === 'Enter' && !roleList.hidden && activeRoleIndex >= 0) {
+        event.preventDefault();
+        chooseRole(visibleRoleOptions[activeRoleIndex]);
+      } else if (event.key === 'Escape') {
+        closeRoleOptions();
+      }
+    });
+    roleToggle.addEventListener('click', () => {
+      if (roleList.hidden) renderRoleOptions('', true);
+      else closeRoleOptions();
+    });
+
+    function profileForRole(value) {
+      const role = text(value).toLowerCase();
+      if (/\b(qa|quality assurance|test|tester|sdet)\b/.test(role)) return 'qa';
+      if (/\b(full\s*stack)\b/.test(role)) return 'fullstack';
+      if (/\b(front\s*end|frontend|ui developer)\b/.test(role)) return 'frontend';
+      if (/c\+\+|\b(cpp|systems?|embedded)\b/.test(role)) return 'systems';
+      if (/\b(ai|ml|machine learning|data scientist)\b/.test(role)) return 'ai-ml';
+      if (/\b(data analyst|data engineer|sql developer|database)\b/.test(role)) return 'data';
+      if (/\b(back\s*end|backend|node(?:\.js)?)\b/.test(role)) return 'backend';
+      return 'generic';
+    }
+    function availableSkills() {
+      return SKILL_OPTIONS[profileForRole(roleInput.value)] || SKILL_OPTIONS.generic;
+    }
+    function renderSelectedSkills() {
+      selected.replaceChildren();
+      state.requiredSkillset.forEach((skill, index) => {
+        const chip = node('span', '', 'ri-skill-chip');
+        chip.append(node('span', skill));
+        const remove = node('button', '×');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', `Remove ${skill}`);
+        remove.addEventListener('click', () => {
+          state.requiredSkillset.splice(index, 1);
+          renderSelectedSkills();
+          renderSkillSuggestions(search.value);
+          markDraft();
+          syncControls();
+          search.focus();
+        });
+        chip.append(remove);
+        selected.append(chip);
+      });
+    }
+    function addSkill(value) {
+      const skill = text(value).replace(/\s+/g, ' ').trim();
+      if (!skill) return;
+      if (skill.length > 80) {
+        status('uploadStatus', 'A skill name must be 80 characters or fewer.', 'error');
+        return;
+      }
+      if (state.requiredSkillset.some(item => item.toLowerCase() === skill.toLowerCase())) {
+        search.value = '';
+        renderSkillSuggestions('');
+        return;
+      }
+      if (state.requiredSkillset.length >= 20) {
+        status('uploadStatus', 'You can select up to 20 required skills.', 'warning');
+        return;
+      }
+      state.requiredSkillset.push(skill);
+      search.value = '';
+      renderSelectedSkills();
+      renderSkillSuggestions('');
+      markDraft();
+      syncControls();
+    }
+    function renderSkillSuggestions(query = '') {
+      suggestions.replaceChildren();
+      const normalized = text(query).trim().toLowerCase();
+      const available = availableSkills().filter(skill =>
+        !state.requiredSkillset.some(selectedSkill => selectedSkill.toLowerCase() === skill.toLowerCase()) &&
+        (!normalized || skill.toLowerCase().includes(normalized))
+      );
+      const matches = available.slice(0, 10);
+      matches.forEach(skill => {
+        const option = node('button', skill, 'ri-skill-option');
+        option.type = 'button';
+        option.setAttribute('role', 'option');
+        option.addEventListener('click', () => addSkill(skill));
+        suggestions.append(option);
+      });
+      const exactSelected = state.requiredSkillset.some(skill => skill.toLowerCase() === normalized);
+      const exactKnown = availableSkills().some(skill => skill.toLowerCase() === normalized);
+      if (normalized && !exactSelected && !exactKnown) {
+        const custom = node('button', `Add custom skill: ${text(query).trim()}`, 'ri-skill-option');
+        custom.type = 'button';
+        custom.setAttribute('role', 'option');
+        custom.addEventListener('click', () => addSkill(query));
+        suggestions.append(custom);
+      }
+      if (!matches.length && !(normalized && !exactSelected && !exactKnown)) {
+        suggestions.append(node('p', normalized ? 'No matching suggestions. Type a skill and press Enter to add it.' : 'All suggested skills are selected. You can still add a custom skill.', 'ri-skillset-empty'));
+      }
+      suggestions.hidden = false;
+      search.setAttribute('aria-expanded', 'true');
+    }
+
+    search.addEventListener('focus', () => renderSkillSuggestions(search.value));
+    search.addEventListener('input', () => renderSkillSuggestions(search.value));
+    search.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const query = search.value.trim();
+        if (!query) return;
+        const exact = availableSkills().find(skill => skill.toLowerCase() === query.toLowerCase());
+        const firstMatch = availableSkills().find(skill => skill.toLowerCase().includes(query.toLowerCase()));
+        addSkill(exact || firstMatch || query);
+      } else if (event.key === 'Escape') {
+        suggestions.hidden = true;
+        search.setAttribute('aria-expanded', 'false');
+      }
+    });
+    roleInput.addEventListener('input', () => {
+      renderSkillSuggestions(search.value);
+      markDraft();
+      syncControls();
+    });
+    roleInput.addEventListener('change', () => renderSkillSuggestions(search.value));
+    document.addEventListener('click', event => {
+      if (!roleWidget.contains(event.target)) closeRoleOptions();
+      if (!skillField.contains(event.target)) {
+        suggestions.hidden = true;
+        search.setAttribute('aria-expanded', 'false');
+      }
+    });
+    renderSelectedSkills();
+    $('setupHelp').textContent = 'Choose a PDF, select a target role, and add at least one required skill.';
   }
-  function source(parent, value, analysis = false) {
-    parent.replaceChildren();
-    const sourceValue = text(value);
-    if (/^ollama-[a-z0-9][a-z0-9._:-]*$/i.test(sourceValue)) parent.append(node('span', analysis ? 'AI-assisted analysis' : 'AI-generated questions', 'badge badge-accent'));
-    else if (sourceValue === 'heuristic-fallback') parent.append(node('span', 'Rule-based fallback', 'badge badge-warning'));
-    else parent.append(node('span', 'Source not specified', 'badge'));
-    if (sourceValue === 'heuristic-fallback') parent.append(node('p', 'Prepared with resume-based rules. These results are available to use.', 'helper'));
-  }
-  function detailsSection(title, wide = false) {
-    const section = node('section', '', 'panel content-panel' + (wide ? ' details-wide' : ''));
-    section.append(node('h3', title)); $('resumeDetails').append(section); return section;
-  }
-  function renderEntries(parent, values, render) {
-    const items = records(values);
-    if (!items.length) { empty(parent); return; }
-    items.forEach(item => { const entry = node('article', '', 'entry'); render(entry, item); parent.append(entry); });
-  }
+
+  installInterviewFields();
+
   function contextLabel(snapshot) {
-    return [snapshot.targetRole && 'Target role: ' + snapshot.targetRole, 'Interview type: ' + snapshot.interviewType].filter(Boolean).join(' / ');
+    const skills = Array.isArray(snapshot.requiredSkillset) ? snapshot.requiredSkillset.join(', ') : '';
+    return [
+      snapshot.targetRole && 'Target role: ' + snapshot.targetRole,
+      skills && 'Required skills: ' + skills,
+    ].filter(Boolean).join(' / ');
   }
   function renderResults(data, snapshot) {
     const parsed = data.parsedResume || {};
@@ -680,10 +1107,98 @@
     expandSetup(false); syncControls(); selectTab(0); focusSection($('resultsTitle'));
   }
 
+  function clearFile(message = '') {
+    state.file = null; $('fileInput').value = '';
+    $('selectedFile').hidden = true; $('fileName').textContent = ''; $('fileSize').textContent = '';
+    $('fileError').textContent = message;
+    $('chooseFile').setAttribute('aria-invalid', String(Boolean(message)));
+    $('setupHelp').textContent = 'Choose a PDF, select a target role, and add at least one required skill.';
+    $('resumeStepState').textContent = state.current ? 'Previous resume analyzed' : 'Set up your interview';
+    syncControls();
+  }
+  function acceptFiles(files) {
+    if (state.uploadBusy || !state.authenticated || state.leaving || !files.length) return;
+    clearFile(); status('uploadStatus');
+    if (files.length !== 1) { clearFile('Choose one resume at a time. No file was selected.'); return; }
+    const file = files[0];
+    if (file.type !== 'application/pdf') { clearFile('Choose a PDF file. The previous selection has been cleared.'); return; }
+    if (file.size > MAX_FILE_SIZE) { clearFile('This PDF exceeds 5 MB. Choose a smaller file.'); return; }
+    if (file.size === 0) { clearFile('This file is empty. Choose a PDF containing resume text.'); return; }
+    state.file = file;
+    $('selectedFile').hidden = false; $('fileName').textContent = file.name;
+    $('fileSize').textContent = file.size >= 1024 * 1024 ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : Math.max(1, Math.round(file.size / 1024)) + ' KB';
+    $('setupHelp').textContent = 'Resume selected. Confirm the target role and required skills, then analyze.';
+    $('resumeStepState').textContent = 'Resume selected';
+    status('uploadStatus', 'Resume selected. Review your target role and required skills, then analyze.');
+    markDraft(); setStep(0); syncControls();
+  }
+  ['chooseFile', 'replaceFile'].forEach(id => $(id).addEventListener('click', () => {
+    if (!state.uploadBusy) { $('fileInput').value = ''; $('fileInput').click(); }
+  }));
+  $('fileInput').addEventListener('change', event => acceptFiles(Array.from(event.target.files)));
+  $('removeFile').addEventListener('click', () => {
+    if (state.uploadBusy) return;
+    clearFile(); status('uploadStatus', 'Local file selection removed. Any saved resume and its results are unchanged.');
+    $('chooseFile').focus();
+  });
+  let dragDepth = 0;
+  $('dropzone').addEventListener('dragenter', event => { event.preventDefault(); if (!state.uploadBusy) { dragDepth++; $('dropzone').classList.add('dragover'); } });
+  $('dropzone').addEventListener('dragover', event => { event.preventDefault(); });
+  $('dropzone').addEventListener('dragleave', event => { event.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; $('dropzone').classList.remove('dragover'); } });
+  $('dropzone').addEventListener('drop', event => {
+    event.preventDefault(); dragDepth = 0; $('dropzone').classList.remove('dragover');
+    acceptFiles(Array.from(event.dataTransfer.files));
+  });
+  window.addEventListener('dragover', event => { if (Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); });
+  window.addEventListener('drop', event => { if (Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); });
+
+  function empty(parent, message = 'Not detected in this resume') { parent.append(node('p', message, 'empty-text')); }
+  function textList(parent, values, className = 'text-list') {
+    const items = strings(values);
+    if (!items.length) { empty(parent); return; }
+    const list = node('ul', '', className);
+    items.forEach(value => list.append(node('li', value))); parent.append(list);
+  }
+  function source(parent, value, analysis = false) {
+    parent.replaceChildren();
+    const sourceValue = text(value);
+    if (/^ollama-[a-z0-9][a-z0-9._:-]*$/i.test(sourceValue)) parent.append(node('span', analysis ? 'AI-assisted analysis' : 'AI-generated questions', 'badge badge-accent'));
+    else if (sourceValue === 'heuristic-fallback') parent.append(node('span', 'Rule-based fallback', 'badge badge-warning'));
+    else parent.append(node('span', 'Source not specified', 'badge'));
+    if (sourceValue === 'heuristic-fallback') parent.append(node('p', 'Prepared with resume-based rules. These results are available to use.', 'helper'));
+  }
+  function detailsSection(title, wide = false) {
+    const section = node('section', '', 'panel content-panel' + (wide ? ' details-wide' : ''));
+    section.append(node('h3', title)); $('resumeDetails').append(section); return section;
+  }
+  function renderEntries(parent, values, render) {
+    const items = records(values);
+    if (!items.length) { empty(parent); return; }
+    items.forEach(item => { const entry = node('article', '', 'entry'); render(entry, item); parent.append(entry); });
+  }
+
   $('setupForm').addEventListener('submit', async event => {
     event.preventDefault();
     if (!state.file || state.uploadBusy || !state.authenticated || state.leaving) return;
-    const snapshot = { file: state.file, targetRole: $('targetRole').value, interviewType: $('interviewType').value || 'Technical' };
+    const targetRole = $('targetRole').value.trim();
+    if (!targetRole) {
+      status('uploadStatus', 'Select a target role or type the job title you are preparing for.', 'error');
+      $('targetRole').focus();
+      return;
+    }
+    if (!state.requiredSkillset.length) {
+      status('uploadStatus', 'Select at least one required skill before analyzing the resume.', 'error');
+      $('requiredSkillSearch').focus();
+      return;
+    }
+    const snapshot = {
+      file: state.file,
+      targetRole,
+      requiredSkillset: state.requiredSkillset.slice(),
+      // Keep the legacy value temporarily so the current upload controller
+      // and ResumeContextBuilder continue to receive the field they expect.
+      interviewType: 'Technical',
+    };
     const id = ++state.uploadId;
     uploadRequest?.abort(); uploadRequest = new AbortController();
     state.questionId++; questionRequest?.abort(); state.categoryBusy = '';
@@ -696,7 +1211,10 @@
     $('analysisStepState').textContent = 'Processing resume';
     setStep(1);
     const body = new FormData();
-    body.append('resume', snapshot.file); body.append('interviewType', snapshot.interviewType); body.append('targetRole', snapshot.targetRole);
+    body.append('resume', snapshot.file);
+    body.append('targetRole', snapshot.targetRole);
+    body.append('interviewType', snapshot.interviewType);
+    body.append('requiredSkillset', JSON.stringify(snapshot.requiredSkillset));
     try {
       const res = await fetch('/api/resume/upload', { method: 'POST', headers: headers(), body, signal: uploadRequest.signal });
       if (id !== state.uploadId || state.leaving) return;
@@ -710,7 +1228,8 @@
       }
       if (typeof data.resumeId !== 'string' || !data.parsedResume || typeof data.parsedResume !== 'object') throw new Error('response');
       state.current = { id: data.resumeId, snapshot };
-      state.categoryQuestions = Object.create(null); state.categoryErrors = Object.create(null); state.categoryInsufficient = Object.create(null);
+      state.categoryQuestions = Object.create(null); state.questionPositions = Object.create(null);
+      state.categoryErrors = Object.create(null); state.categoryInsufficient = Object.create(null);
       state.answerDrafts = Object.create(null); state.answerBusy = Object.create(null); state.answerErrors = Object.create(null);
       state.practiceLoading = false; state.practiceLoadError = ''; state.practiceLoadedFor = '';
       state.categoryWorkflowEntered = false; state.selectedCategory = '';

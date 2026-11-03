@@ -7,10 +7,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test test/answerEvaluationService.test.js test/mongoCheckpoint.test.js test/auth.test.js test/questionGenerator.test.js test/categoryQuestions.test.js test/categoryApi.test.js test/ollamaService.test.js test/interviewPlanner.test.js test/questionValidator.test.js test/resumeParsingRegression.test.js test/evaluateQuestions.test.js test/uiNavigation.test.js",
+    "test": "node --test --test-concurrency=1 test/syntaxCheck.test.js test/adaptiveGeneration.test.js test/answerEvaluationService.test.js test/mongoCheckpoint.test.js test/auth.test.js test/questionGenerator.test.js test/categoryQuestions.test.js test/categoryApi.test.js test/ollamaService.test.js test/interviewPlanner.test.js test/questionValidator.test.js test/resumeParsingRegression.test.js test/evaluateQuestions.test.js test/uiNavigation.test.js",
     "evaluate:questions": "node test/evaluateQuestions.js",
     "demo": "node test/parseSample.js test/sample_resume.pdf",
     "demo:generate": "node test/parseSample.js",
+    "demo:technical": "node test/showTechnicalGeneration.js",
     "test:integration": "node --test test/auth.integration.test.js"
   },
   "dependencies": {

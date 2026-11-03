@@ -88,7 +88,7 @@ test('the selected workspace has one explicit generate or regenerate action usin
   assert.match(app, /if \(!state\.current \|\| state\.categoryBusy/);
   assert.match(app, /state\.categoryBusy = categoryId/);
   assert.match(app, /state\.categoryErrors\[selected\?\.id\] \? 'Retry generation' : hasQuestions \? 'Regenerate Questions' : 'Generate 6 Questions'/);
-  assert.match(app, /snapshot\?\.targetRole[\s\S]*?snapshot\?\.interviewType/);
+  assert.match(app, /body\.append\('targetRole', snapshot\.targetRole\)[\s\S]*?body\.append\('interviewType', snapshot\.interviewType\)/);
   assert.match(app, /if \(isCurrent\(\)\) \{ state\.categoryBusy = ''; syncControls\(\); \}/);
   assert.equal((app.match(/fetch\(`\/api\/resume\/\$\{encodeURIComponent\(resumeId\)\}\/questions\/\$\{encodeURIComponent\(categoryId\)\}`/g) || []).length, 1);
   assert.doesNotMatch(app, /fetch\(`\/api\/resume\/\$\{encodeURIComponent\(resumeId\)\}\/questions`/);

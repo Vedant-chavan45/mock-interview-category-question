@@ -93,7 +93,7 @@ test('fallback questions are concise, grounded, and preserve the required distri
   assert.ok(questions[3].question.includes(context.projects[0].title));
   assert.equal(questions[2].basedOn, context.projects[0].title);
   assert.equal(questions[3].basedOn, context.projects[0].title);
-  assert.match(questions[1].question, /Node\.js|MongoDB|REST API Design/);
+  assert.match(questions[1].question, /Software Architecture|REST API Design|Databases & Data Modelling/);
   assert.equal(questions[4].basedOn, 'Developer Intern');
   assert.match(questions[4].question, /Developer Intern.*Elastik Teams/);
   assert.equal(questions[5].type, 'behavioral');
@@ -122,7 +122,7 @@ test('public generation sends a compact schema and assigns question types by slo
     assert.equal(body.format.properties.questions.maxItems, 6);
     assert.equal(body.format.properties.questions.items.type, 'string');
     assert.equal(body.format.properties.questions.items.properties, undefined);
-    assert.deepEqual(body.options, { num_predict: 192, num_ctx: 4096, temperature: 0.2 });
+    assert.deepEqual(body.options, { num_predict: 512, num_ctx: 4096, temperature: 0.2 });
     assert.equal(body.keep_alive, '10m');
     assert.ok(Number.isInteger(config.timeout));
     assert.ok(config.timeout <= 90000);

@@ -9,6 +9,7 @@ const { buildCategoryQuestionPrompt, generateCategoryQuestions, heuristicFallbac
 const { validateGeneratedCategoryQuestions, validateGeneratedQuestions } = require('../src/services/questionValidatorService');
 const { buildInterviewPlan } = require('../src/services/interviewPlannerService');
 const { heuristicFallbackQuestions } = require('../src/services/questionGeneratorService');
+const { rotationForCategory } = require('../src/services/questionRotationService');
 
 const context = {
   targetRole: 'Backend Developer', interviewType: 'Technical',
@@ -24,6 +25,54 @@ const context = {
 };
 const plan = buildInterviewPlan(context);
 const categoryIds = Object.keys(QUESTION_CATEGORIES);
+
+function parsePromptJson(prompt, marker, endMarker) {
+  const markerIndex = prompt.indexOf(marker);
+  assert.notEqual(markerIndex, -1, `Prompt is missing its expected JSON marker: ${prompt.slice(0, 700)}`);
+  const start = markerIndex + marker.length;
+  const end = endMarker ? prompt.indexOf(endMarker, start) : -1;
+  return JSON.parse(prompt.slice(start, end < 0 ? undefined : end).trim());
+}
+
+function technicalPlanFor(skills) {
+  return { skillPlans: skills.map((name) => ({ kind: /node|mongodb|express/i.test(name) ? 'tool' : 'other', confidence: 0.8,
+    interpretation: `${name} domain mechanisms`, subtopics: [0, 1, 2].map((index) => ({
+      name: `${name} domain concept ${index + 1}`,
+      keyTerms: [`${name} mechanism`, `state${index + 1}`, `boundary${index + 1}`],
+      angles: [0, 1].map((angle) => ({ objective: `reason about ${name} domain concept ${index + 1} angle ${angle + 1}`,
+        style: angle ? 'debugging' : 'mechanism', assessmentCriteria: ['Explain the mechanism', 'Connect it to an observable result'] })),
+    })) })) };
+}
+
+function technicalQuestionResponse(prompt) {
+  const targets = parsePromptJson(prompt, 'QUESTION OBJECTIVES IN ORDER (dynamic assessment blueprint): ', '\nPREVIOUS QUESTIONS');
+  const forms = [
+    (term, topic) => `When ${term} matters during ${topic}, what behavior should you expect and why?`,
+    (term, topic) => `Given ${term} in ${topic}, what result would you predict at a boundary?`,
+    (term, topic) => `How does ${term} affect ${topic} when the input changes?`,
+    (term, topic) => `If ${term} behaves unexpectedly in ${topic}, where would you look first?`,
+    (term, topic) => `Why does ${term} matter for ${topic}, and what observation would confirm it?`,
+    (term, topic) => `What would change in ${topic} if ${term} had a different value?`,
+  ];
+  return { questions: targets.map((target, index) => {
+    const term = target.keyTerms?.[0] || target.subtopic.split(' ')[0];
+    return forms[index % forms.length](term, target.subtopic);
+  }) };
+}
+
+function technicalRequestPayload(prompt) {
+  if (prompt.startsWith('You are the technical assessment planner')) {
+    const skills = parsePromptJson(prompt, 'TARGETS IN REQUIRED ORDER: ', '\nPRIOR COVERAGE');
+    return technicalPlanFor(skills);
+  }
+  if (prompt.startsWith('Role ') && prompt.includes('QUESTION OBJECTIVES IN ORDER (dynamic assessment blueprint):')) return technicalQuestionResponse(prompt);
+  if (prompt.startsWith('Independently review these six')) {
+    const targets = parsePromptJson(prompt, 'ASSESSMENT PLAN AND QUESTIONS: ', '\nPREVIOUSLY ASSESSED');
+    return { reviews: targets.map((target) => ({ slotId: target.slotId, targetAlignment: 5, technicalCoherence: 5,
+      roleLevelFit: 5, spokenClarity: 5, objectiveUniqueness: 5, issueCodes: [] })) };
+  }
+  throw new Error(`Unexpected technical generation stage: ${prompt.slice(0, 64)}`);
+}
 const modelQuestions = {
   domain_fundamentals: [
     'When a request reaches your API, what would you check before handling it?',
@@ -96,7 +145,7 @@ function metadataKeys(question) {
 }
 
 test('each category defines six unique, distinct, and meaningful slot objectives', () => {
-  for (const categoryId of categoryIds) {
+  for (const categoryId of categoryIds.filter((id) => id !== 'technical_concepts')) {
     const blueprint = buildCategoryBlueprint(context, categoryId, plan);
     assert.equal(blueprint.slots.length, QUESTION_COUNT_PER_CATEGORY, categoryId);
     assert.equal(new Set(blueprint.slots.map((slot) => slot.slotId)).size, 6, categoryId);
@@ -104,6 +153,10 @@ test('each category defines six unique, distinct, and meaningful slot objectives
     assert.ok(blueprint.slots.every((slot) => slot.objective.length > 35 && slot.evidence.anchor));
     assert.ok(blueprint.slots.every((slot) => !Object.hasOwn(slot, 'intent')));
   }
+  const technical = buildCategoryBlueprint(context, 'technical_concepts', plan);
+  assert.equal(technical.slots.length, 6);
+  assert.equal(new Set(technical.slots.map((slot) => slot.slotId)).size, 6);
+  assert.ok(technical.slots.every((slot) => !slot.questionExample && /independently planned/.test(slot.objective)));
   assert.match(buildCategoryBlueprint(context, 'domain_fundamentals', plan).slots[0].objective, /API/);
   const fullStack = buildCategoryBlueprint({ ...context, targetRole: 'Full Stack Developer' }, 'domain_fundamentals');
   assert.match(fullStack.slots[0].objective, /browser|API/i);
@@ -126,14 +179,17 @@ test('role-specific category plans keep six valid interview examples across comm
   for (const targetRole of roles) {
     const roleContext = { ...supportedEvidence, targetRole, interviewType: 'Technical' };
     const rolePlan = buildInterviewPlan(roleContext);
-    for (const categoryId of categoryIds) {
+    for (const categoryId of categoryIds.filter((id) => id !== 'technical_concepts')) {
       const result = heuristicFallbackCategoryQuestions(roleContext, categoryId, rolePlan);
       assert.equal(result.questions.length, 6, `${targetRole}:${categoryId}`);
       assert.equal(result.source, 'heuristic-fallback');
       checked += 1;
     }
   }
-  assert.equal(checked, 48);
+  assert.equal(checked, 40);
+  assert.throws(() => heuristicFallbackCategoryQuestions({ ...supportedEvidence, targetRole: 'Backend Developer' },
+    'technical_concepts', buildInterviewPlan({ ...supportedEvidence, targetRole: 'Backend Developer' })),
+  { code: 'TECHNICAL_TEMPLATE_FALLBACK_DISABLED' });
 });
 
 test('category prompts contain the selected role, interview type, evidence, category, and ordered slot objectives', () => {
@@ -145,14 +201,18 @@ test('category prompts contain the selected role, interview type, evidence, cate
     assert.match(prompt, new RegExp(QUESTION_CATEGORIES[categoryId].label));
     assert.match(prompt, /RESUME EVIDENCE/);
     assert.match(prompt, /QUESTION OBJECTIVES IN ORDER/);
-    assert.match(prompt, /Technical Skills questions must name their listed skill naturally/i);
+    if (categoryId === 'technical_concepts') {
+      assert.match(prompt, /Resume skills are secondary context only/);
+      assert.match(prompt, /required skill is not evidence/i);
+      assert.match(prompt, /The broad skill label may be omitted/);
+    }
     if (categoryId === 'applied_scenarios') assert.match(prompt, /Do not force a technology name into every Applied Scenario/i);
     for (const slot of blueprint.slots) {
       assert.ok(prompt.includes(slot.slotId), `${categoryId}:${slot.slotId}`);
-      assert.ok(slot.questionExample && prompt.includes(slot.questionExample), `${categoryId}:${slot.slotId}:questionExample`);
+      if (categoryId !== 'technical_concepts') assert.ok(slot.questionExample && prompt.includes(slot.questionExample), `${categoryId}:${slot.slotId}:questionExample`);
     }
     assert.match(prompt, /Return only \{"questions"/);
-    assert.match(prompt, /evidenceId/);
+    if (categoryId !== 'technical_concepts') assert.match(prompt, /evidenceId/);
     assert.doesNotMatch(prompt, /basedOn|categoryId.*output/i);
   }
   assert.match(buildCategoryQuestionPrompt(context, 'project_deep_dive', plan), /Nexus Messaging Platform/);
@@ -161,7 +221,8 @@ test('category prompts contain the selected role, interview type, evidence, cate
   assert.equal((projectPrompt.match(/"mentionProjectNameOnce":"Resume Parser Platform"/g) || []).length, 1);
   assert.match(projectPrompt, /mentionProjectNameOnce/);
   const technicalPrompt = buildCategoryQuestionPrompt(context, 'technical_concepts', plan);
-  assert.equal((technicalPrompt.match(/"includeSkillName"/g) || []).length, 6);
+  assert.match(technicalPrompt, /QUESTION OBJECTIVES IN ORDER/);
+  assert.doesNotMatch(technicalPrompt, /includeSkillName|must mention each skill exactly/i);
   const appliedPrompt = buildCategoryQuestionPrompt(context, 'applied_scenarios', plan);
   assert.doesNotMatch(appliedPrompt, /requiredEvidencePhrase|includeSkillName/);
   assert.match(buildCategoryQuestionPrompt(context, 'professional_experience', plan), /Developer Intern/);
@@ -171,7 +232,7 @@ test('category prompts contain the selected role, interview type, evidence, cate
 });
 
 test('the category validator assigns metadata from slot order and accepts natural paraphrases', () => {
-  for (const categoryId of categoryIds) {
+  for (const categoryId of categoryIds.filter((id) => id !== 'technical_concepts')) {
     const category = getQuestionCategory(categoryId);
     let result;
     try { result = validateGeneratedCategoryQuestions(modelResponse(categoryId), context, plan, category); }
@@ -182,6 +243,8 @@ test('the category validator assigns metadata from slot order and accepts natura
     assert.ok(result.every((item) => item.basedOn && item.evidenceProvenance?.kind));
     assert.ok(result.every((item) => metadataKeys(item).join(',') === 'basedOn,categoryId,evidenceIds,evidenceProvenance,question,slotId,type'));
   }
+  assert.throws(() => validateGeneratedCategoryQuestions(modelResponse('technical_concepts'), context, plan,
+    getQuestionCategory('technical_concepts')), (error) => error.code === 'off-target-subtopic');
   const paraphrases = modelQuestions.domain_fundamentals.slice();
   const assignedSkill = buildCategoryBlueprint(context, 'technical_concepts', plan).slots[0].evidence.anchor;
   paraphrases[0] = `How would you follow a ${assignedSkill} API call from its route through middleware and return a predictable response?`;
@@ -223,8 +286,8 @@ test('validates natural live Ollama wording across all six categories and normal
     `How would you check that data handled by ${techSlots[4].evidence.anchor} is correct and safe?`,
     `When would you choose ${techSlots[5].evidence.anchor} instead of another option?`,
   ];
-  assert.equal(validateGeneratedCategoryQuestions(modelResponse('technical_concepts', technical, liveContext), liveContext, livePlan,
-    getQuestionCategory('technical_concepts')).length, 6);
+  assert.throws(() => validateGeneratedCategoryQuestions(modelResponse('technical_concepts', technical, liveContext), liveContext, livePlan,
+    getQuestionCategory('technical_concepts')), (error) => error.code === 'generic-template-framing' || error.code === 'off-target-subtopic');
 
   const project = [
     "Can you explain how Synthetic Ticket Routing API works from a user's point of view?",
@@ -467,7 +530,7 @@ test('the previous live Ollama wording is not rejected for category phrasing; on
   };
   const expectedErrorIndexes = {
     domain_fundamentals: [],
-    technical_concepts: [],
+    technical_concepts: [0, 1, 2, 3, 4, 5],
     project_deep_dive: [],
     professional_experience: [],
     applied_scenarios: [],
@@ -493,8 +556,13 @@ test('all six category slots provide practical spoken examples across supported 
     for (const categoryId of categoryIds) {
       const blueprint = buildCategoryBlueprint({ ...roleContext, targetRole }, categoryId);
       assert.equal(blueprint.slots.length, 6);
-      assert.ok(blueprint.slots.every((slot) => typeof slot.questionExample === 'string' && slot.questionExample.endsWith('?')),
-        `${targetRole}:${categoryId}`);
+      if (categoryId === 'technical_concepts') {
+        assert.ok(blueprint.slots.every((slot) => /^technical_assessment_\d$/.test(slot.slotId) && !slot.questionExample),
+          `${targetRole}:${categoryId}`);
+      } else {
+        assert.ok(blueprint.slots.every((slot) => typeof slot.questionExample === 'string' && slot.questionExample.endsWith('?')),
+          `${targetRole}:${categoryId}`);
+      }
     }
   }
 });
@@ -536,8 +604,8 @@ test('category validation does not police wording, opening phrases, word count, 
 
   const abstractPerformance = modelQuestions.technical_concepts.slice();
   abstractPerformance[3] = `Can you explain how ${buildCategoryBlueprint(context, 'technical_concepts', plan).slots[3].evidence.anchor} handles performance optimization?`;
-  assert.equal(validateGeneratedCategoryQuestions(modelResponse('technical_concepts', abstractPerformance), context, plan,
-    getQuestionCategory('technical_concepts')).length, 6);
+  assert.throws(() => validateGeneratedCategoryQuestions(modelResponse('technical_concepts', abstractPerformance), context, plan,
+    getQuestionCategory('technical_concepts')), (error) => error.code === 'off-target-subtopic');
 });
 
 test('Role & Domain Fundamentals does not introduce tools absent from the resume', () => {
@@ -707,7 +775,7 @@ test('applied scenario questions may use natural role language without repeating
 
 test('missing project, experience, or skill evidence is reported without calling Ollama or presenting sample questions', async (t) => {
   const post = t.mock.method(axios, 'post', async () => { throw new Error('No model call expected without grounding evidence'); });
-  const empty = { targetRole: 'Backend Developer', interviewType: 'Technical' };
+  const empty = { targetRole: '', interviewType: 'Technical', skills: [], projects: [], experience: [] };
   for (const categoryId of ['project_deep_dive', 'professional_experience', 'technical_concepts']) {
     await assert.rejects(generateCategoryQuestions(empty, categoryId), { code: 'INSUFFICIENT_RESUME_EVIDENCE' });
   }
@@ -715,28 +783,50 @@ test('missing project, experience, or skill evidence is reported without calling
 });
 
 test('category model requests six concise question strings and application code assigns slots and evidence metadata', async (t) => {
-  const output = { questions: modelQuestions.technical_concepts };
+  const calls = [];
   const request = t.mock.method(axios, 'post', async (_url, body) => {
-    assert.equal(body.format.type, 'object');
-    assert.equal(body.format.properties.questions.minItems, 6);
-    assert.equal(body.format.properties.questions.maxItems, 6);
-    assert.equal(body.format.properties.questions.items.type, 'string');
-    assert.equal(body.format.properties.questions.items.maxLength, 240);
-    assert.match(body.prompt, /Return only \{"questions":\[/);
-    return { status: 200, data: { response: JSON.stringify(output) } };
+    calls.push(body.prompt);
+    if (body.prompt.startsWith('You are the technical assessment planner')) {
+      assert.equal(body.format.properties.skillPlans.minItems, 2);
+      return { status: 200, data: { response: JSON.stringify(technicalRequestPayload(body.prompt)) } };
+    }
+    if (body.prompt.startsWith('Role ') && body.prompt.includes('QUESTION OBJECTIVES IN ORDER (dynamic assessment blueprint):')) {
+      assert.equal(body.format.properties.questions.minItems, 6);
+      assert.equal(body.format.properties.questions.maxItems, 6);
+      assert.equal(body.format.properties.questions.items.type, 'string');
+      assert.equal(body.format.properties.questions.items.maxLength, 240);
+      assert.match(body.prompt, /Return only \{"questions":\[/);
+      return { status: 200, data: { response: JSON.stringify(technicalRequestPayload(body.prompt)) } };
+    }
+    assert.ok(body.prompt.startsWith('Independently review these six'));
+    return { status: 200, data: { response: JSON.stringify(technicalRequestPayload(body.prompt)) } };
   });
   const result = await generateCategoryQuestions(context, 'technical_concepts', { force: true });
-  assert.equal(request.mock.callCount(), 1);
+  assert.equal(request.mock.callCount(), 3);
+  assert.equal(calls.length, 3);
   assert.equal(result.source, 'ollama-llama3.2');
   assert.equal(result.status, 'ready');
   assert.ok(result.questions.every((item, index) => item.slotId === buildCategoryBlueprint(context, 'technical_concepts', plan).slots[index].slotId));
   assert.ok(result.questions.every((item) => item.type === 'technical' && item.categoryId === 'technical_concepts'));
   assert.ok(result.questions.every((item) => item.evidenceIds.length === 1));
+  assert.ok(result.questions.every((item) => item.subtopic && item.assessmentObjective && item.primaryResumeSkill));
 });
 
 test('each category accepts one valid mocked Ollama response and attributes AI only after validation', async (t) => {
   const calls = [];
   t.mock.method(axios, 'post', async (_url, body) => {
+    if (body.prompt.startsWith('You are the technical assessment planner')) {
+      calls.push('technical_concepts');
+      return { status: 200, data: { response: JSON.stringify(technicalRequestPayload(body.prompt)) } };
+    }
+    if (body.prompt.startsWith('Role ') && body.prompt.includes('QUESTION OBJECTIVES IN ORDER (dynamic assessment blueprint):')) {
+      calls.push('technical_concepts');
+      return { status: 200, data: { response: JSON.stringify(technicalRequestPayload(body.prompt)) } };
+    }
+    if (body.prompt.startsWith('Independently review these six')) {
+      calls.push('technical_concepts');
+      return { status: 200, data: { response: JSON.stringify(technicalRequestPayload(body.prompt)) } };
+    }
     const categoryId = categoryIds.find((id) => body.prompt.includes(`category ${id} (`)) || categoryIds.find((id) => body.prompt.includes(id));
     assert.ok(categoryId);
     calls.push(categoryId);
@@ -744,7 +834,7 @@ test('each category accepts one valid mocked Ollama response and attributes AI o
   });
   const results = [];
   for (const categoryId of categoryIds) results.push(await generateCategoryQuestions(context, categoryId, { force: true }));
-  assert.deepEqual(calls, categoryIds);
+  assert.deepEqual(calls, categoryIds.flatMap((id) => id === 'technical_concepts' ? [id, id, id] : [id]));
   assert.ok(results.every((result) => result.source === 'ollama-llama3.2' && result.questions.length === 6));
   for (const [index, categoryId] of categoryIds.entries()) {
     assert.equal(results[index].category, categoryId);
@@ -923,7 +1013,7 @@ test('Professional Experience accepts a natural technical-contribution question 
 });
 
 test('all deterministic category fallbacks return six distinct grounded questions with honest metadata', () => {
-  for (const categoryId of categoryIds) {
+  for (const categoryId of categoryIds.filter((id) => id !== 'technical_concepts')) {
     let result;
     try { result = heuristicFallbackCategoryQuestions(context, categoryId, plan); }
     catch (error) { error.message = `${categoryId} ${error.code} ${error.questionIndex}`; throw error; }
@@ -932,8 +1022,8 @@ test('all deterministic category fallbacks return six distinct grounded question
     assert.equal(new Set(result.questions.map((item) => item.question)).size, QUESTION_COUNT_PER_CATEGORY);
     assert.ok(result.questions.every((item) => item.categoryId === categoryId && item.slotId && item.evidenceProvenance));
   }
-  const technicalFallback = heuristicFallbackCategoryQuestions(context, 'technical_concepts', plan).questions;
-  assert.match(technicalFallback[0].question, /\buse Express to build a small feature\b/);
+  assert.throws(() => heuristicFallbackCategoryQuestions(context, 'technical_concepts', plan),
+    { code: 'TECHNICAL_TEMPLATE_FALLBACK_DISABLED' });
   const appliedFallback = heuristicFallbackCategoryQuestions(context, 'applied_scenarios', plan).questions;
   assert.match(appliedFallback[0].question, /Suppose an API (?:using Express )?becomes slow/i);
 });
