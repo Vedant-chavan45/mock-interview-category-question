@@ -1,49 +1,30 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sign in | Resume Intelligence</title>
-  <link rel="stylesheet" href="/css/tokens.css" />
-  <link rel="stylesheet" href="/css/base.css" />
-  <link rel="stylesheet" href="/css/auth.css" />
-  <script src="/js/auth.js" defer></script>
-</head>
-<body>
-<a class="skip-link" href="#authTitle">Skip to sign in</a>
-<header class="auth-header"><a class="brand" href="/login.html"><span class="brand-mark" aria-hidden="true">ri</span>Resume Intelligence</a></header>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080913"><title>Sign in | Resume Intelligence</title><link rel="stylesheet" href="/css/auth.css"><script src="/js/auth.js" defer></script></head>
+<body class="auth-studio"><a class="skip-link" href="#authTitle">Skip to authentication</a>
+<header class="auth-header"><a href="/" class="auth-brand" aria-label="Resume Intelligence welcome"><span class="auth-brand-mark" aria-hidden="true">✧</span><span><strong>Resume Intelligence</strong><small>INTERVIEW STUDIO</small></span></a></header>
 <main class="auth-layout">
-  <section class="auth-intro" aria-labelledby="productTitle">
-    <span class="eyebrow">Interview preparation, with direction</span>
-    <h1 id="productTitle">Turn your resume into focused interview preparation.</h1>
-    <p>Understand what your experience says about you, then prepare for the questions it could inspire.</p>
-    <ol class="auth-benefits">
-      <li><span class="step-no" aria-hidden="true">01</span><div><strong>Start with your resume</strong><p>Bring your experience, skills and projects together.</p></div></li>
-      <li><span class="step-no" aria-hidden="true">02</span><div><strong>Find your focus</strong><p>Review your strengths and areas to prepare.</p></div></li>
-      <li><span class="step-no" aria-hidden="true">03</span><div><strong>Prepare with relevant questions</strong><p>Use your resume and target role to guide your practice.</p></div></li>
-    </ol>
-  </section>
-  <section class="panel auth-panel" aria-labelledby="authTitle">
-    <div class="auth-panel-header"><h2 id="authTitle" tabindex="-1">Welcome back</h2><p id="authSubtitle">Sign in to prepare for your next opportunity.</p></div>
-    <div id="authStatus" class="status" role="status" aria-live="polite"></div>
-    <div id="authError" class="status status-error" role="alert"></div>
-    <button id="retryAuth" class="btn btn-secondary full-width" type="button" hidden>Retry connection</button>
-    <form id="loginForm" novalidate aria-busy="false">
-      <fieldset id="authFields" disabled>
-        <legend class="sr-only" id="authLegend">Sign in details</legend>
-        <div class="auth-fields">
-          <div class="field" id="nameField" hidden><label for="name">Name</label><input id="name" name="name" autocomplete="name" maxlength="100" aria-describedby="nameError" /><p id="nameError" class="field-error" hidden></p></div>
-          <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="username" maxlength="254" required aria-describedby="emailError" /><p id="emailError" class="field-error" hidden></p></div>
-          <div class="field"><label for="password">Password</label><div class="password-control"><input type="password" id="password" name="password" autocomplete="current-password" required aria-describedby="passwordHelp passwordError" /><button type="button" class="btn btn-quiet password-toggle" data-password="password" aria-label="Show password" aria-controls="password" aria-pressed="false">Show</button></div><p id="passwordHelp" class="helper" hidden>At least 8 characters. Maximum 72 UTF-8 bytes; some characters use more than one byte.</p><p id="passwordError" class="field-error" hidden></p></div>
-          <div class="field" id="confirmField" hidden><label for="confirmPassword">Confirm password</label><div class="password-control"><input type="password" id="confirmPassword" name="confirmPassword" autocomplete="new-password" aria-describedby="confirmPasswordError" /><button type="button" class="btn btn-quiet password-toggle" data-password="confirmPassword" aria-label="Show confirmation password" aria-controls="confirmPassword" aria-pressed="false">Show</button></div><p id="confirmPasswordError" class="field-error" hidden></p></div>
-        </div>
-        <button type="submit" id="loginBtn" class="btn btn-primary full-width auth-submit">Sign in</button>
-      </fieldset>
-    </form>
-    <div class="auth-switch"><p id="switchPrompt">New to Resume Intelligence?</p><button type="button" id="toggleMode" class="btn btn-quiet" disabled>Create an account</button></div>
-    <noscript><p class="status status-warning">JavaScript is required to sign in and analyze your resume. Please enable it to continue.</p></noscript>
-  </section>
+ <section class="auth-intro" aria-labelledby="productTitle">
+  <span class="auth-eyebrow">YOUR NEXT CHAPTER STARTS HERE</span>
+  <h1 id="productTitle">Prepare with<br><span>purpose.</span></h1>
+  <p>Keep your preparation organized in one place—from the first resume insight to the final interview answer.</p>
+  <div class="auth-question" aria-label="Preview of an interview question"><div class="auth-question-overline"><span class="auth-live-dot"></span> YOUR FUTURE WORKSPACE <span aria-hidden="true">↗</span></div><p>“If your project suddenly had 100 times more users, what would break first?”</p><div class="auth-question-tags"><span>Project deep dive</span><span>Question 03 / 06</span></div><div class="auth-question-meter"><i></i></div></div>
+  <p class="auth-benefits">✓ Focused preparation&nbsp;&nbsp; ✓ Context-aware questions&nbsp;&nbsp; ✓ Thoughtful feedback</p>
+ </section>
+ <section class="auth-panel" aria-labelledby="authTitle">
+  <h2 id="authTitle" tabindex="-1">Sign in to continue.</h2>
+  <p id="authSubtitle" class="sr-only">Sign in to prepare for your next opportunity.</p>
+  <div class="auth-tabs" role="group" aria-label="Account action"><button id="authLoginTab" type="button" class="auth-tab is-active" aria-pressed="true">Log in</button><button id="toggleMode" type="button" class="auth-tab" aria-pressed="false" disabled>Create account</button></div>
+  <div id="authStatus" class="status" role="status" aria-live="polite"></div><div id="authError" class="status status-error" role="alert"></div><button id="retryAuth" class="auth-retry" type="button" hidden>Retry connection</button>
+  <form id="loginForm" novalidate aria-busy="false"><fieldset id="authFields" disabled><legend class="sr-only" id="authLegend">Sign in details</legend>
+   <div class="auth-fields">
+    <div class="field" id="nameField" hidden><label for="name">Your name</label><input id="name" name="name" autocomplete="name" maxlength="100" placeholder="e.g. Alex Morgan" aria-describedby="nameError"><p id="nameError" class="field-error" hidden></p></div>
+    <div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="username" maxlength="254" placeholder="you@example.com" required aria-describedby="emailError"><p id="emailError" class="field-error" hidden></p></div>
+    <div class="field"><div class="password-label"><label for="password">Password</label></div><div class="password-control"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required aria-describedby="passwordHelp passwordError"><button type="button" class="password-toggle" data-password="password" aria-label="Show password" aria-controls="password" aria-pressed="false">Show</button></div><p id="passwordHelp" class="helper" hidden>Use at least 8 characters (maximum 72 UTF-8 bytes).</p><p id="passwordError" class="field-error" hidden></p></div>
+    <div class="field" id="confirmField" hidden><label for="confirmPassword">Confirm password</label><div class="password-control"><input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" placeholder="Enter your password again" aria-describedby="confirmPasswordError"><button type="button" class="password-toggle" data-password="confirmPassword" aria-label="Show confirmation password" aria-controls="confirmPassword" aria-pressed="false">Show</button></div><p id="confirmPasswordError" class="field-error" hidden></p></div>
+   </div><button id="loginBtn" class="auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
+  </fieldset></form>
+  <div class="sr-only"><span id="switchPrompt">New to Resume Intelligence?</span></div>
+  <noscript><p class="status status-error">JavaScript is required to sign in. Please enable it.</p></noscript>
+ </section>
 </main>
-<footer class="auth-footer">Your experience. A more focused way to prepare.</footer>
-</body>
-</html>
+</body></html>

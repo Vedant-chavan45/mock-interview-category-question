@@ -40,6 +40,9 @@ app.use('/api/auth', authRoutes);
 // on the HLD slide) — see src/middleware/authMiddleware.js.
 app.use('/api/resume', requireAuth, resumeRoutes);
 
+// Public welcome page; /index.html remains the authenticated application.
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'welcome.html')));
+
 // Static demo webpage — login page + drag-and-drop resume UI, so the
 // module can be demoed in a browser instead of via curl/Postman.
 // Visit http://localhost:PORT/ once the server is running.

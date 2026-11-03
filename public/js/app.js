@@ -73,8 +73,8 @@
       'Git', 'Communication',
     ],
   };
-  const tabs = ['tabOverview', 'tabDetails'].map($);
-  const panels = ['overviewPanel', 'detailsPanel'].map($);
+  const tabs = ['tabOverview', 'tabDetails', 'tabRequirements'].map($);
+  const panels = ['overviewPanel', 'detailsPanel', 'requirementsPanel'].map($);
   const text = value => typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   const strings = value => Array.isArray(value) ? value.filter(item => typeof item === 'string' && item.trim()) : [];
   const records = value => Array.isArray(value) ? value.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
@@ -105,7 +105,7 @@
   }
   function leave(message) {
     state.leaving = true; state.authenticated = false; invalidateRequests();
-    $('workspace').hidden = true; $('userGreeting').textContent = '';
+    $('workspace').hidden = true; $('userGreeting').textContent = ''; $('themeToggle').hidden = true;
     try {
       localStorage.removeItem('resumeAppToken'); localStorage.removeItem('resumeAppUser');
       window.location.replace('/login.html');
@@ -138,7 +138,7 @@
       localStorage.setItem('resumeAppUser', JSON.stringify(data.user));
       $('userGreeting').textContent = text(data.user.name) || text(data.user.email) || 'Signed in';
       state.authenticated = true;
-      $('accessPanel').hidden = true; $('workspace').hidden = false;
+      $('accessPanel').hidden = true; $('workspace').hidden = false; $('themeToggle').hidden = false;
       syncControls();
     } catch (err) {
       if (id !== state.authId || state.leaving || err.name === 'AbortError') return;
@@ -157,18 +157,21 @@
     $('submitBtn').textContent = state.uploadBusy ? 'Analyzing resume...' : 'Analyze resume';
     $('setupForm').setAttribute('aria-busy', String(state.uploadBusy));
     $('processing').hidden = !state.uploadBusy;
+    $('main').classList.toggle('is-uploading', state.uploadBusy);
+    $('main').classList.toggle('has-analysis', Boolean(state.current));
     $('editSetup').disabled = state.uploadBusy;
     $('prepareQuestions').disabled = !state.current || state.uploadBusy || !state.authenticated;
     $('stepAnalysis').disabled = !state.current;
-    $('stepQuestions').disabled = !state.current || !state.categoryWorkflowEntered || !state.authenticated || state.uploadBusy;
-    $('questionsStepHelp').hidden = state.categoryWorkflowEntered;
-    $('questionsStepHelp').textContent = state.categoryWorkflowEntered ? '' : 'Locked: choose Prepare Interview Questions from Overview';
-    if (state.categoryWorkflowEntered) $('stepQuestions').removeAttribute('aria-describedby');
+    $('stepQuestions').disabled = !state.current || !state.authenticated || state.uploadBusy;
+    $('questionsStepHelp').hidden = Boolean(state.current);
+    $('questionsStepHelp').textContent = state.current ? '' : 'Locked: analyze a resume first';
+    if (state.current) $('stepQuestions').removeAttribute('aria-describedby');
     else $('stepQuestions').setAttribute('aria-describedby', 'questionsStepHelp');
-    $('questionsStepState').textContent = state.categoryWorkflowEntered ? 'Choose a category' : 'Prepare from your results';
+    $('questionsStepState').textContent = state.current ? 'Choose a category' : 'Prepare from your results';
     renderCategoryInterface();
   }
   function setStep(index) {
+    $('main').dataset.riStep = String(index + 1);
     ['stepResume', 'stepAnalysis', 'stepQuestions'].forEach((id, i) => {
       if (i === index) $(id).setAttribute('aria-current', 'step'); else $(id).removeAttribute('aria-current');
     });
@@ -178,6 +181,7 @@
     $('questionsStatus').hidden = inQuestions;
     $('overviewPanel').hidden = inQuestions || $('tabOverview').getAttribute('aria-selected') !== 'true';
     $('detailsPanel').hidden = inQuestions || $('tabDetails').getAttribute('aria-selected') !== 'true';
+    $('requirementsPanel').hidden = inQuestions || $('tabRequirements').getAttribute('aria-selected') !== 'true';
     $('questionsPanel').hidden = !inQuestions;
   }
   function selectCategory(categoryId, restoreFocus = false) {
@@ -718,11 +722,14 @@
   $('stepResume').addEventListener('click', () => { expandSetup(); focusSection($('setupTitle')); });
   $('stepAnalysis').addEventListener('click', () => { selectTab(0); focusSection($('resultsTitle')); });
   $('stepQuestions').addEventListener('click', () => {
-    if (!state.categoryWorkflowEntered || $('stepQuestions').disabled) return;
-    setStep(2); focusSection($('questionsStageTitle'));
+    if ($('stepQuestions').disabled || !state.current) return;
+    state.categoryWorkflowEntered = true;
+    if (!state.selectedCategory) state.selectedCategory = questionCategories[0].id;
+    syncControls(); setStep(2); loadPractice(); focusSection($('questionsStageTitle'));
   });
   $('viewDetails').addEventListener('click', () => selectTab(1, true));
   $('backToOverview').addEventListener('click', () => { selectTab(0); $('tabOverview').focus(); });
+  $('prepareFromRequirements').addEventListener('click', () => $('prepareQuestions').click());
   $('prepareQuestions').addEventListener('click', () => {
     if (!state.current || state.uploadBusy || !state.authenticated || state.leaving) return;
     state.categoryWorkflowEntered = true;
@@ -1044,6 +1051,35 @@
       skills && 'Required skills: ' + skills,
     ].filter(Boolean).join(' / ');
   }
+
+  function renderRequiredSkillCoverage(snapshot, parsedSkills) {
+    const listed = strings(parsedSkills);
+    const selected = strings(snapshot.requiredSkillset);
+    const container = $('requirementCoverage');
+    const gapPanel = $('requirementGaps');
+    container.replaceChildren(); gapPanel.replaceChildren();
+    const normalized = input => text(input).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    let mentions = 0;
+    const notMentioned = [];
+    for (const skill of selected) {
+      const mentioned = listed.some(item => normalized(item) === normalized(skill));
+      mentions += Number(mentioned);
+      if (!mentioned) notMentioned.push(skill);
+      const row = node('div', '', 'ri-requirement-row');
+      row.append(node('strong', skill), node('span', mentioned ? 'Mentioned in resume' : 'Not explicitly mentioned', mentioned ? 'ri-covered' : 'ri-uncovered'));
+      container.append(row);
+    }
+    if (!selected.length) empty(container, 'No required skills were selected.');
+    const summary = node('p', `${mentions} of ${selected.length} selected required skills are explicitly mentioned in the resume.`, 'ri-coverage-summary');
+    gapPanel.append(summary);
+    if (notMentioned.length) {
+      gapPanel.append(node('p', 'Prioritize preparation for these requirements:', 'ri-supporting'));
+      const list = node('ul', '', 'pill-list');
+      notMentioned.forEach(item => list.append(node('li', item)));
+      gapPanel.append(list);
+    } else if (selected.length) gapPanel.append(node('p', 'All selected skill names appear in the resume, but interviews should still assess practical understanding.', 'ri-supporting'));
+  }
+
   function renderResults(data, snapshot) {
     const parsed = data.parsedResume || {};
     const analysis = data.analysis || {};
@@ -1063,6 +1099,7 @@
       $('analysisContent').append(section);
     }
     $('keySkills').replaceChildren(); textList($('keySkills'), parsed.skills, 'pill-list');
+    renderRequiredSkillCoverage(snapshot, parsed.skills);
     $('resumeFacts').replaceChildren();
     for (const [label, count] of [['Skills detected', strings(parsed.skills).length], ['Projects detected', records(parsed.projects).length], ['Experience entries', records(parsed.experience).length], ['PDF pages', Number.isFinite(data.pageCount) ? data.pageCount : null]]) {
       if (count === null) continue;
