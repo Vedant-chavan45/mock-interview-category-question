@@ -1,6 +1,9 @@
 'use strict';
 
-const axios = require('axios');
+const { performance } = require('node:perf_hooks');
+const modelGateway = require('../ai/modelGateway');
+const { getAIConfig } = require('../ai/config');
+const telemetry = require('../ai/telemetry');
 
 const RELEVANCE_LEVELS = ['none', 'minimal', 'partial', 'good', 'excellent'];
 const MAX_SCORE_BY_RELEVANCE = Object.freeze({
@@ -37,7 +40,8 @@ const RESPONSE_SCHEMA = {
 function getConfig() {
   return {
     baseUrl: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/+$/, ''),
-    model: process.env.OLLAMA_MODEL || 'llama3.2:latest',
+    model: getAIConfig().provider === 'groq' ? getAIConfig().model : (process.env.OLLAMA_MODEL || 'llama3.2:latest'),
+    provider: getAIConfig().provider,
     timeoutMs: positiveInteger(process.env.ANSWER_EVALUATION_TIMEOUT_MS || process.env.OLLAMA_TIMEOUT_MS, 120000),
     keepAlive: process.env.OLLAMA_KEEP_ALIVE || '10m',
   };
@@ -239,7 +243,7 @@ CALIBRATION:
 Return JSON only. Do not include markdown fences or text outside JSON.`;
 }
 
-async function evaluateAnswer({ question, answer, categoryLabel, resumeContext }) {
+async function evaluateAnswer({ question, answer, categoryLabel, categoryId, resumeContext }) {
   if (typeof question !== 'string' || !question.trim()) {
     throw Object.assign(new Error('A valid interview question is required.'), { code: 'EVALUATION_INVALID_QUESTION' });
   }
@@ -247,21 +251,57 @@ async function evaluateAnswer({ question, answer, categoryLabel, resumeContext }
     throw Object.assign(new Error('Enter an answer before requesting evaluation.'), { code: 'EVALUATION_EMPTY_ANSWER' });
   }
   const config = getConfig();
-  if (isOnlyScoreRequest(answer)) return buildZeroCreditEvaluation(config.model, 'score-request-only');
+  const startedAt = performance.now();
+  if (isOnlyScoreRequest(answer)) {
+    telemetry.recordOperation({
+      operation: 'answer_evaluation', provider: config.provider, model: config.model,
+      categoryId, stage: 'evaluation', outcome: 'bypass', elapsedMs: performance.now() - startedAt,
+      modelCallCount: 0, requestMs: 0,
+    });
+    return buildZeroCreditEvaluation(config.model, 'score-request-only');
+  }
 
   const prompt = buildEvaluationPrompt({ question: question.trim(), answer: answer.trim(), categoryLabel, resumeContext });
-  const response = await axios.post(`${config.baseUrl}/api/generate`, {
+  const response = await modelGateway.generateStructured({
+    operation: 'answer_evaluation',
+    categoryId,
+    stage: 'evaluation',
+    baseUrl: config.baseUrl,
     model: config.model,
     prompt,
-    stream: false,
     format: RESPONSE_SCHEMA,
-    keep_alive: config.keepAlive,
+    streaming: false,
+    keepAlive: config.keepAlive,
     options: { temperature: 0, num_predict: 800, num_ctx: 4096 },
-  }, { timeout: config.timeoutMs });
+    timeoutMs: config.timeoutMs,
+  });
 
-  const parsed = parseJson(response.data?.response);
-  const evaluation = validateEvaluation(parsed, answer);
-  return { ...evaluation, model: config.model };
+  const validationStartedAt = performance.now();
+  try {
+    const parsed = parseJson(response.response);
+    const evaluation = validateEvaluation(parsed, answer);
+    const validationMs = performance.now() - validationStartedAt;
+    telemetry.recordOperation({
+      operation: 'answer_evaluation', provider: config.provider, model: config.model,
+      categoryId, stage: 'evaluation', outcome: 'success', elapsedMs: performance.now() - startedAt,
+      validationMs, modelCallCount: 1, requestMs: response.telemetry?.elapsedMs,
+      loadMs: telemetry.nanosecondsToMilliseconds(response.loadDuration),
+      promptProcessingMs: telemetry.nanosecondsToMilliseconds(response.promptEvalDuration),
+      decodeMs: telemetry.nanosecondsToMilliseconds(response.evalDuration),
+      modelTotalMs: telemetry.nanosecondsToMilliseconds(response.totalDuration),
+      promptTokens: response.promptEvalCount, generatedTokens: response.evalCount,
+    });
+    return { ...evaluation, model: config.model };
+  } catch (error) {
+    telemetry.recordOperation({
+      operation: 'answer_evaluation', provider: config.provider, model: config.model,
+      categoryId, stage: 'evaluation', outcome: 'failure', error,
+      elapsedMs: performance.now() - startedAt,
+      validationMs: performance.now() - validationStartedAt,
+      modelCallCount: 1, requestMs: response.telemetry?.elapsedMs,
+    });
+    throw error;
+  }
 }
 
 module.exports = {

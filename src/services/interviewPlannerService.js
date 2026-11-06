@@ -51,13 +51,29 @@ const profiles = [
 
 function buildInterviewPlan(resumeContext) {
   const c = obj(resumeContext);
-  const role = text(c.targetRole).toLowerCase().replace(/[-_/]+/g, ' ').replace(/\s+/g, ' ');
-  const profile = profiles.find((p) => p[2].test(role)) || profiles[profiles.length - 1];
+
+  const role = text(c.targetRole)
+    .toLowerCase()
+    .replace(/[-_/]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  // Employer-required skills selected during interview setup.
+  const requiredSkillset = [
+    ...new Set(
+      list(c.requiredSkillset)
+        .map(text)
+        .filter(Boolean)
+        .map((skill) => skill.trim())
+    ),
+  ];
+
+  // Collect evidence actually present in the candidate's resume.
   const evidence = [];
   const add = (value, label = '') => {
     const claim = text(value);
     if (claim) evidence.push({ claim, label: text(label) });
   };
+
   list(c.skills).forEach((s) => add(s));
   list(c.projects).forEach((value) => {
     const p = obj(value);
@@ -68,26 +84,89 @@ function buildInterviewPlan(resumeContext) {
   list(c.experience).forEach((value) => {
     const e = obj(value);
     add(e.role);
+    add(e.organisation);
     list(e.responsibilities).forEach((s) => add(s, e.role));
   });
-  list(c.education).forEach((value) => { const e = obj(value); add(e.degree); });
+  list(c.education).forEach((value) => {
+    const e = obj(value);
+    add(e.degree);
+    add(e.institution);
+  });
+
+  // An explicitly selected target-role profile takes priority.
+  const profile = profiles.find((p) => p[2].test(role)) || profiles[profiles.length - 1];
+
   const interviewType = text(c.interviewType) || 'Technical';
   const behavioral = /\b(behavioral|behavioural|hr)\b/i.test(interviewType);
+
+  // Match employer-required skills against the selected role's topic patterns.
   const focusAreas = profile[3].map((key, order) => {
     const [topic, pattern] = topics[key];
-    const matches = evidence.filter((e) => pattern.test(e.claim));
-    return { topic, priority: behavioral ? 'medium' : matches.length || order < 3 ? 'high' : 'medium',
-      evidence: [...new Set(matches.flatMap((e) => [e.claim, e.label]).filter(Boolean))] };
+    const resumeMatches = evidence.filter((e) => pattern.test(e.claim));
+    const requiredMatches = requiredSkillset.filter((skill) => pattern.test(skill));
+
+    return {
+      topic,
+      priority: behavioral
+        ? 'medium'
+        : requiredMatches.length > 0 || resumeMatches.length > 0 || order < 3
+          ? 'high'
+          : 'medium',
+      evidence: [
+        ...new Set(resumeMatches.flatMap((e) => [e.claim, e.label]).filter(Boolean)),
+      ],
+      requiredSkills: requiredMatches,
+      requiredSkillPriority: requiredMatches.length > 0,
+    };
   });
-  // Supported role topics come first; stable ordering preserves profile priorities on ties.
-  focusAreas.sort((a, b) => Number(b.evidence.length > 0) - Number(a.evidence.length > 0));
+
+  // Preserve required skills that do not match one of the selected profile's
+  // predefined topics as explicit focus areas rather than silently dropping them.
+  const coveredSkills = new Set(
+    focusAreas.flatMap((area) => area.requiredSkills.map((skill) => skill.toLowerCase()))
+  );
+
+  const additionalRequiredAreas = requiredSkillset
+    .filter((skill) => !coveredSkills.has(skill.toLowerCase()))
+    .map((skill) => ({
+      topic: skill,
+      priority: 'high',
+      evidence: [],
+      requiredSkills: [skill],
+      requiredSkillPriority: true,
+      customRequiredSkill: true,
+    }));
+
+  // Required-skill topics appear first, followed by topics supported by resume evidence.
+  focusAreas.sort((a, b) =>
+    Number(b.requiredSkillPriority) - Number(a.requiredSkillPriority) ||
+    Number(b.evidence.length > 0) - Number(a.evidence.length > 0)
+  );
+
+  focusAreas.unshift(...additionalRequiredAreas);
+
   if (behavioral) {
-    focusAreas.unshift({ topic: 'Communication, Collaboration & Ownership', priority: 'high', evidence: [] });
+    focusAreas.unshift({
+      topic: 'Communication, Collaboration & Ownership',
+      priority: 'high',
+      evidence: [],
+      requiredSkills: [],
+      requiredSkillPriority: false,
+    });
   }
-  return { primaryDomain: profile[1], roleProfile: profile[0], interviewType,
-    emphasis: behavioral ? 'communication, collaboration, ownership and experience'
-      : /mixed/i.test(interviewType) ? 'technical focus with project and experience breadth' : 'technical domain depth',
-    focusAreas };
+
+  return {
+    primaryDomain: profile[1],
+    roleProfile: profile[0],
+    interviewType,
+    requiredSkillset,
+    emphasis: behavioral
+      ? 'communication, collaboration, ownership and experience'
+      : /mixed/i.test(interviewType)
+        ? 'required skills first, followed by technical, project and experience breadth'
+        : 'employer-required skills and technical domain depth',
+    focusAreas,
+  };
 }
 
 // Small stable ordering: role-specific fundamentals, exact topic keywords,

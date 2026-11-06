@@ -539,6 +539,49 @@ function extractEducation(sectionText) {
 }
 
 // ---------------------------------------------------------------------------
+// Certifications
+// ---------------------------------------------------------------------------
+// Certifications are often a bullet-only final section. The generic entry
+// splitter intentionally drops leading bullets without a preceding title,
+// which is correct for project descriptions but loses *all* certificates.
+function extractCertifications(sectionText) {
+  if (!sectionText) return [];
+  const lines = mergeBareBulletMarkers(sectionText.split('\n').map(line => line.trim()).filter(Boolean));
+  const hasBullets = lines.some(isBulletLine);
+  const entries = [];
+  let current = '';
+
+  function push() {
+    const item = current.replace(/\s+/g, ' ').trim();
+    if (item) entries.push(item);
+    current = '';
+  }
+
+  for (const line of lines) {
+    if (isBulletLine(line)) {
+      push();
+      current = line.replace(/^[-*•]\s+/, '').trim();
+    } else if (hasBullets) {
+      // The next physical line can be a wrapped continuation of a bullet.
+      current = current ? `${current} ${line}` : line;
+    } else if (current && (/^[a-z(]/.test(line) || /[,;:\-–—]$/.test(current))) {
+      current += ` ${line}`;
+    } else {
+      push();
+      current = line;
+    }
+  }
+  push();
+  const seen = new Set();
+  return entries.filter(item => {
+    const key = item.toLowerCase().replace(/\s+/g, ' ');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Contact block (name / email / phone) — used for the candidate profile,
 // not a rubric-required field, but genuinely useful for the demo.
 // ---------------------------------------------------------------------------
@@ -571,9 +614,7 @@ function parse(text) {
   const projects = extractProjects(sections.PROJECTS);
   const experience = extractExperience(sections.EXPERIENCE);
   const education = extractEducation(sections.EDUCATION);
-  const certifications = sections.CERTIFICATIONS
-    ? getEntryBlocks(sections.CERTIFICATIONS, 1).map((e) => e.split('\n')[0].trim())
-    : [];
+  const certifications = extractCertifications(sections.CERTIFICATIONS);
   const contact = extractContactInfo(headerBlock, text);
 
   const sectionsFound = boundaries.map((b) => b.section);
@@ -604,6 +645,7 @@ module.exports = {
   extractProjects,
   extractExperience,
   extractEducation,
+  extractCertifications,
   findSectionBoundaries, // exported for unit tests / debugging in the demo
   SECTION_ALIASES,
 };

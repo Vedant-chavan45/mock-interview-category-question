@@ -124,7 +124,7 @@ test('fallback technical questions prefer role evidence over leading skills and 
   assert.equal(skillsOnly.questions[0].basedOn, 'Node.js');
   assert.ok(!skillsOnly.questions.slice(0, 2).some((q) => ['C++', 'Python', 'HTML', 'CSS'].includes(q.basedOn)));
   const noEvidence = heuristicFallbackQuestions({ targetRole: 'Backend Developer' });
-  assert.match(noEvidence.questions[0].question, /how would you approach REST API Design/);
+  assert.match(noEvidence.questions[0].question, /how would you apply REST API Design and verify the result/);
   assert.doesNotMatch(noEvidence.questions[0].question, /you implemented|your resume evidence/);
 });
 

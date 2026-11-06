@@ -1,0 +1,393 @@
+/* Production frontend skin. All application actions remain in public/js/app.js. */
+:root{color-scheme:dark;--ri-bg:#0b111b;--ri-surface:#1b2636;--ri-panel-2:#172231;--ri-stroke:#364a63;--ri-text:#e9f0fa;--ri-muted:#9aacc4;--ri-accent:#75a8ea;--ri-soft:#233b59;--ri-track:#303f54;--ri-success:#88d7b7}
+
+html[data-theme="light"] {
+  color-scheme: light;
+
+  /* Main backgrounds */
+  --ri-bg: #e8edf3;
+  --ri-surface: #f7f9fc;
+  --ri-panel-2: #edf1f6;
+
+  /* Borders */
+  --ri-stroke: #cbd5e1;
+
+  /* Text */
+  --ri-text: #1e293b;
+  --ri-muted: #52647c;
+
+  /* Accent colors */
+  --ri-accent: #285fa8;
+  --ri-soft: #dce8f6;
+  --ri-track: #d2dce7;
+
+  /* Status */
+  --ri-success: #16765e;
+}
+
+html,body{scroll-padding-top:100px}
+body.ri-studio{background:var(--ri-bg);color:var(--ri-text);font:14px/1.65 Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;min-height:100vh;transition:background .3s,color .3s}
+.ri-studio{--surface:var(--ri-surface);--surface-secondary:var(--ri-panel-2);--text:var(--ri-text);--text-secondary:var(--ri-muted);--text-muted:var(--ri-muted);--border:var(--ri-stroke);--control-border:var(--ri-stroke);--accent:var(--ri-accent);--accent-hover:var(--ri-accent);--accent-tint:var(--ri-soft);--success:var(--ri-success);--success-bg:var(--ri-soft);--content-width:1290px}
+.ri-studio [hidden]{display:none!important}
+.ri-studio .app-header{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--ri-bg) 92%,transparent);border-bottom:1px solid var(--ri-stroke);backdrop-filter:blur(20px)}
+.ri-studio .header-inner{width:min(1420px,calc(100% - 70px));max-width:none;min-height:76px;margin:auto;padding:7px 0;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.ri-studio .brand{display:flex;align-items:center;gap:11px;color:var(--ri-text);text-decoration:none}.ri-studio .brand-mark{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#5273c5,#414f9d);border:1px solid #94a9e4;box-shadow:0 8px 26px #293b7a35;color:#fff;font-size:27px}
+.brand-wordmark{display:flex;flex-direction:column;line-height:1.2}.brand-wordmark strong{font-size:13px;letter-spacing:-.03em}.brand-wordmark small{margin-top:5px;color:var(--ri-muted);font-size:8px;letter-spacing:.16em;font-weight:800}.workspace-header-title{color:var(--ri-muted);font-size:10px;font-weight:750;letter-spacing:.14em;white-space:nowrap}
+.ri-studio .user-actions{display:flex;align-items:center;gap:16px;flex-wrap:nowrap}.ri-studio #userGreeting{font-size:11px;color:var(--ri-muted);max-width:150px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:7px 13px;border:1px solid var(--ri-stroke);border-radius:10px;background:var(--ri-surface);color:var(--ri-text);font-size:11px;font-weight:650;white-space:nowrap;transition:transform .2s,border-color .2s}.theme-toggle:hover{transform:translateY(-1px);border-color:var(--ri-accent)}.theme-toggle svg{flex:none}
+.workspace-live{font-size:10px;display:inline-flex;align-items:center;gap:7px;color:var(--ri-muted);white-space:nowrap}.workspace-live i{width:6px;height:6px;border-radius:50%;background:#5bcca1;box-shadow:0 0 9px #5bcca166}
+.ri-studio .btn{border-radius:10px;min-height:42px;transition:transform .22s,box-shadow .22s,border-color .22s}.ri-studio .btn:hover:not(:disabled){transform:translateY(-1px)}.ri-studio .btn-primary{background:#376fb6;border-color:#5c97dd;color:#fff;box-shadow:0 10px 26px #2056a23a;font-weight:720}.ri-studio .btn-primary:hover:not(:disabled){background:#376fb6;box-shadow:0 13px 30px #2056a254}.ri-studio .btn-secondary{background:var(--ri-panel-2);border-color:var(--ri-stroke);color:var(--ri-text)}.ri-studio .btn-quiet{color:var(--ri-muted);font-weight:650}.ri-studio .btn:disabled{opacity:.5;box-shadow:none;transform:none}
+.ri-studio .app-main{max-width:1290px;margin:0 auto;padding:42px 25px 65px}.ri-studio .page-heading{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:26px}.ri-studio .page-heading h1{font-size:clamp(26px,3vw,35px);line-height:1.2;letter-spacing:-.045em;font-weight:690;margin:12px 0 8px}.ri-studio .page-heading p{font-size:12px;color:var(--ri-muted);margin:0}.ri-studio .eyebrow{color:var(--ri-accent);font-size:10px;letter-spacing:.13em;font-weight:800;text-transform:uppercase}.workspace-step-caption{font-size:10px;letter-spacing:.1em;color:var(--ri-muted)}
+.ri-studio .panel{background:var(--ri-surface);border:1px solid var(--ri-stroke);border-radius:19px;box-shadow:none;color:var(--ri-text)}
+.ri-studio .access-panel{max-width:640px;background:var(--ri-surface);border:1px solid var(--ri-stroke)}
+.ri-studio .workflow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;list-style:none;padding:0;margin:0 0 26px}.ri-studio .workflow button{min-height:80px;display:flex;align-items:center;text-align:left;gap:12px;background:var(--ri-surface);border:1px solid var(--ri-stroke);border-radius:13px;padding:14px 17px;color:var(--ri-text);transition:border-color .2s,transform .2s,background .2s}.ri-studio .workflow button:not(:disabled):hover{border-color:var(--ri-accent);transform:translateY(-1px)}.ri-studio .workflow button[aria-current="step"]{border-color:#6f9fdd;background:var(--ri-soft);box-shadow:inset 0 0 0 1px #5380b735}.ri-studio .workflow button:disabled{cursor:not-allowed;opacity:.63}.ri-studio .workflow-number{display:grid;place-items:center;min-width:32px;width:32px;height:32px;border:1px solid var(--ri-stroke);background:var(--ri-panel-2);border-radius:9px;color:var(--ri-muted);font-size:12px;font-weight:720}.ri-studio .workflow button[aria-current="step"] .workflow-number{background:#326fb4;border-color:#4b93df;color:#fff}.ri-studio .workflow-name{display:block;font-size:13px;font-weight:690}.ri-studio .workflow-state{display:block;margin-top:3px;font-size:10px;color:var(--ri-muted)}
+/* Step 01 */
+.ri-studio .setup-panel{padding:29px 32px 27px}.ri-studio .section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 22px}.ri-studio .section-heading h2{font-size:25px;font-weight:690;letter-spacing:-.04em;margin:5px 0 5px}.ri-studio .section-heading p{font-size:12px;color:var(--ri-muted);margin:0}.ri-studio .setup-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:stretch}.ri-studio .setup-upload,.ri-studio .setup-context{min-width:0;border:1px solid var(--ri-stroke);border-radius:15px;background:var(--ri-panel-2);padding:20px 21px}.ri-form-panel-heading{display:flex;align-items:center;gap:12px;margin-bottom:17px}.ri-panel-count{display:grid;place-items:center;flex:0 0 33px;height:33px;border:1px solid var(--ri-stroke);background:var(--ri-soft);border-radius:9px;font-weight:750;color:var(--ri-accent);font-size:11px}.ri-form-panel-heading strong{display:block;font-size:15px;font-weight:690}.ri-form-panel-heading p{margin:1px 0 0;font-size:11px;color:var(--ri-muted)}
+.ri-studio .dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:229px;gap:12px;text-align:center;border:1px dashed #6c88ad;border-radius:13px;padding:20px 16px;background:color-mix(in srgb,var(--ri-bg) 28%,var(--ri-panel-2));transition:border-color .2s,background .2s}.ri-studio .dropzone.dragover{border-color:var(--ri-accent);background:var(--ri-soft)}.ri-studio .file-emblem{width:48px;height:48px;display:grid;place-items:center;background:var(--ri-soft);color:var(--ri-accent);border:1px solid var(--ri-stroke);font-size:12px;font-weight:750;border-radius:12px}.ri-studio .dropzone strong{font-size:13px}.ri-studio .dropzone p{margin:0}.ri-studio .dropzone .helper{font-size:10px;margin-top:0}
+.ri-studio .selected-file{background:var(--ri-soft);border:1px solid var(--ri-stroke);border-radius:11px;padding:12px;margin-top:14px}.ri-studio .selected-file p{margin:0}.ri-studio .selected-file .file-actions{display:flex;gap:9px;margin:7px 0}
+.ri-studio .field{margin-bottom:20px}.ri-studio .field label{font-weight:670;font-size:11px;color:var(--ri-text);margin-bottom:7px;display:block}.ri-studio .field input,.ri-studio #requiredSkillSearch{width:100%;min-height:44px;background:var(--ri-bg);border:1px solid var(--ri-stroke);color:var(--ri-text);border-radius:10px;padding:10px 13px;font:inherit;font-size:12px;outline:none}.ri-studio .field input:focus,.ri-studio #requiredSkillSearch:focus{border-color:var(--ri-accent);box-shadow:0 0 0 3px #5795e223}.ri-studio .field .helper,.ri-studio .helper{color:var(--ri-muted);font-size:11px}.ri-studio .ri-role-dropdown,.ri-studio .ri-skillset-widget{color:var(--ri-text)}
+.ri-studio .ri-skill-chip{display:inline-flex;align-items:center;gap:6px;background:#24476d!important;color:#e9f3ff!important;border:1px solid #4f80b0!important;border-radius:9px!important;padding:7px 10px!important;font-size:11px!important;white-space:normal}.ri-studio .ri-skill-chip button{color:inherit}.ri-studio .ri-skillset-selected{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px}.ri-studio .ri-skill-option,.ri-studio .ri-role-option{background:var(--ri-surface);color:var(--ri-text);border-color:var(--ri-stroke)}
+.ri-studio .setup-actions{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:21px;margin-top:20px;border:1px solid var(--ri-stroke);border-radius:13px;background:var(--ri-panel-2)}.ri-action-heading{flex:1 1 240px;display:grid;gap:4px}.ri-action-heading strong{font-size:14px;font-weight:680}.ri-studio .setup-actions .btn{min-width:180px;min-height:47px}.ri-studio .setup-actions .helper{flex:1 1 100%;margin:0;font-size:11px}
+.ri-studio .processing{background:var(--ri-panel-2);border-color:var(--ri-stroke);margin-top:19px;padding:14px;border-radius:13px}.ri-studio .processing-stages{display:flex;gap:18px;padding:0;margin:12px 0 0;list-style-position:inside;font-size:11px;color:var(--ri-muted)}.ri-studio #uploadStatus{margin:15px 0 0}
+.ri-studio #workspacePlaceholder{margin:0;display:none}.ri-studio .app-main[data-ri-step="2"].has-analysis:not(.is-uploading) #setupPanel,.ri-studio .app-main[data-ri-step="3"].has-analysis:not(.is-uploading) #setupPanel{display:none}
+.ri-studio .app-main[data-ri-step="1"] #results{display:none}.ri-studio #results{margin-top:0}
+/* Step 02 */
+.ri-studio .results-header{background:transparent;border:0;box-shadow:none;padding:8px 0 25px}.ri-studio .results-header h2{font-size:28px;letter-spacing:-.045em;margin:8px 0}.ri-studio .results-context{font-size:12px;color:var(--ri-muted);line-height:1.7;margin:3px 0;overflow-wrap:anywhere}.ri-studio .tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:0;border-bottom:1px solid var(--ri-stroke);padding:0;border-radius:0;background:none;margin:0 0 19px;width:100%;gap:10px}.ri-studio .tab{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;min-height:44px;padding:8px 14px;color:var(--ri-muted);font-weight:650;font-size:12px}.ri-studio .tab[aria-selected="true"]{border-bottom-color:var(--ri-accent);color:var(--ri-text);background:none;box-shadow:none}.ri-studio .tab:hover{color:var(--ri-text)}
+.ri-studio .overview-grid,.ri-studio .ri-requirements-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:20px;align-items:stretch}.ri-studio .content-panel{padding:28px 29px}.ri-studio .content-panel h3{font-size:20px;font-weight:690;letter-spacing:-.03em;margin:0 0 18px}.ri-studio .content-panel .source-line{margin-bottom:12px}.ri-studio .content-panel .prose{font-size:13px;line-height:1.9;color:var(--ri-text)}.ri-studio .analysis-group{margin-top:22px}.ri-studio .analysis-group h4{font-size:13px;margin:0 0 11px}.ri-studio .text-list{padding-left:18px;font-size:12px;color:var(--ri-muted);line-height:1.85}.ri-studio .text-list li{margin:9px 0}.ri-studio .pill-list{display:flex;flex-wrap:wrap;gap:8px;padding:0;list-style:none}.ri-studio .pill-list li{padding:7px 10px;background:var(--ri-soft);border:1px solid var(--ri-stroke);border-radius:8px;color:var(--ri-text);font-size:11px}
+.ri-studio .facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:24px 0}.ri-studio .facts>div{background:var(--ri-panel-2);border:1px solid var(--ri-stroke);padding:14px;border-radius:10px}.ri-studio .facts dt{font-size:11px;color:var(--ri-muted)}.ri-studio .facts dd{margin:7px 0 0;font-size:22px;font-weight:700;color:var(--ri-text)}.ri-studio #prepareQuestions{margin-top:12px}.ri-studio .badge{background:var(--ri-soft);border:1px solid var(--ri-stroke);color:var(--ri-accent);border-radius:7px;padding:5px 9px}
+.ri-studio .details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:18px}.ri-studio .details-wide{grid-column:auto}.ri-studio #detailsPanel>.back-overview{margin-bottom:16px}.ri-studio #resumeDetails .entry{border-top:1px solid var(--ri-stroke);padding:17px 0}.ri-studio #resumeDetails .entry:first-of-type{border-top:0}.ri-studio #resumeDetails .entry h4{font-size:13px;margin:0 0 7px}.ri-studio #resumeDetails .contact-list{font-size:12px}
+.ri-studio .ri-requirements-grid .content-panel{min-height:300px}.ri-studio .ri-supporting{font-size:12px;color:var(--ri-muted);line-height:1.75;margin-bottom:20px}.ri-studio .ri-requirement-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid var(--ri-stroke);font-size:12px}.ri-studio .ri-requirement-row strong{font-weight:630}.ri-studio .ri-covered{font-size:10px;color:var(--ri-success)}.ri-studio .ri-uncovered{font-size:10px;color:var(--ri-muted)}.ri-studio .ri-coverage-summary{font-size:13px;font-weight:650;margin:14px 0 20px}.ri-studio #prepareFromRequirements{margin-top:22px}
+/* Step 03 */
+.ri-studio .questions-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 20px}.ri-studio .questions-toolbar h3{font-size:28px;letter-spacing:-.045em;font-weight:720;margin:4px 0}.ri-studio .questions-toolbar p{color:var(--ri-muted);font-size:12px}.ri-studio .preparation-summary{display:grid;grid-template-columns:minmax(200px,.8fr) 1.2fr;gap:10px 24px;align-items:center;padding:20px 24px;margin-bottom:21px}.ri-studio .preparation-summary h4{font-size:13px;margin:0 0 4px}.ri-studio .prepared-count{font-size:12px;color:var(--ri-muted)}.ri-studio .preparation-progress{height:7px;background:var(--ri-track);border-radius:100px;overflow:hidden}.ri-studio .preparation-progress-fill{background:var(--ri-accent);height:100%;border-radius:100px;transition:width .3s}.ri-studio .preparation-caption{color:var(--ri-muted);font-size:11px;grid-column:1/-1;margin:0}
+.ri-studio .category-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:21px}.ri-studio .category-navigator{border-radius:18px;padding:22px 23px}.ri-studio .category-navigator-heading{padding:0 0 18px;border:0}.ri-studio .category-navigator-heading h4{font-size:17px;font-weight:710;margin:0 0 4px}.ri-studio .category-navigator-heading p{color:var(--ri-muted);font-size:12px;margin:0}.ri-studio .category-checklist-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;list-style:none;margin:0;padding:0}.ri-studio .category-checklist-item{min-width:0;padding:0;margin:0}.ri-studio .category-select{display:flex;gap:12px;align-items:center;text-align:left;min-height:77px;width:100%;padding:13px;border:1px solid var(--ri-stroke);border-radius:12px;background:var(--ri-panel-2);color:var(--ri-text);transition:transform .2s,border-color .2s}.ri-studio .category-select:hover{transform:translateY(-1px);border-color:var(--ri-accent)}.ri-studio .category-select[aria-current="true"]{border-color:var(--ri-accent);background:var(--ri-soft);box-shadow:inset 0 0 0 1px #5797e22c}.ri-studio .category-indicator{width:32px;height:32px;min-width:32px;display:grid;place-items:center;border:1px solid var(--ri-stroke);border-radius:10px;background:var(--ri-surface);color:var(--ri-muted);font-size:12px}.ri-studio .category-select[aria-current="true"] .category-indicator{background:#356fb3;border-color:#6da0db;color:white}.ri-studio .category-copy{display:flex;flex-direction:column;gap:5px;min-width:0}.ri-studio .category-name{font-size:12px;line-height:1.35;font-weight:680;overflow-wrap:anywhere}.ri-studio .category-checklist-status{font-size:10px;color:var(--ri-muted)}.ri-studio .category-checklist-status.is-ready{color:var(--ri-success)}
+.ri-studio .selected-category{overflow:hidden;padding:0;border-radius:18px}.ri-studio .selected-category-heading{display:flex;align-items:start;justify-content:space-between;gap:20px;background:transparent;border-bottom:1px solid var(--ri-stroke);padding:25px 28px}.ri-studio .selected-category-heading h4{font-size:21px;letter-spacing:-.035em;font-weight:690;margin:4px 0 8px}.ri-studio .selected-category-heading p.secondary{font-size:12px;color:var(--ri-muted);margin:0}.ri-studio .category-source{font-size:11px;color:var(--ri-muted);max-width:240px}.ri-studio .category-workspace-status{margin:22px 28px 0;color:var(--ri-muted);font-size:12px}.ri-studio .category-workspace-status.is-ready{color:var(--ri-success)}.ri-studio .category-workspace-status.is-error{color:#f3a1aa}.ri-studio .selected-category>.status-error{margin:13px 28px 0}
+.ri-studio .category-action-area{padding:12px 28px 23px;display:flex;flex-wrap:wrap;align-items:center;gap:16px;justify-content:space-between}.ri-studio .category-action-area p{font-size:12px;color:var(--ri-muted);flex:1 1 260px;line-height:1.6}.ri-studio #generateCategoryButton{min-width:180px}
+.ri-studio .selected-category .question-list{margin:0;padding:0;list-style:none;counter-reset:none}.ri-studio .selected-category .question-list>li{margin:0;padding:0;border:0;list-style:none}.ri-studio .question-navigation-overview{padding:22px 28px;background:var(--ri-panel-2);border-top:1px solid var(--ri-stroke);border-bottom:1px solid var(--ri-stroke)}.ri-studio .question-navigation-heading{display:flex;align-items:end;justify-content:space-between;gap:16px}.ri-studio .question-navigation-eyebrow{display:block;color:var(--ri-muted);font-size:10px;font-weight:740;letter-spacing:.12em}.ri-studio .question-navigation-title{display:block;font-size:16px;font-weight:710;margin-top:3px}.ri-studio .question-navigation-saved{font-size:11px;color:var(--ri-muted)}.ri-studio .question-navigation-track{height:5px;border-radius:100px;background:var(--ri-track);overflow:hidden;margin:15px 0}.ri-studio .question-navigation-track-fill{height:100%;background:var(--ri-accent);border-radius:100px;transition:width .2s}.ri-studio .question-jump-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.ri-studio .question-jump-label{color:var(--ri-muted);font-size:11px}.ri-studio .question-page-numbers{display:flex;gap:8px;flex-wrap:wrap}.ri-studio .question-number-button{width:35px;height:35px;border:1px solid var(--ri-stroke);border-radius:9px;background:var(--ri-surface);color:var(--ri-text);font-size:12px;font-weight:700}.ri-studio .question-number-button.is-active,.ri-studio .question-number-button[aria-current="true"]{background:#386fae;color:white;border-color:#5995d2}.ri-studio .question-number-button.is-answered:not(.is-active){border-color:#5b9986}
+.ri-studio .question-practice-item{padding:27px 28px 10px}.ri-studio .question-body{font-size:clamp(19px,2.1vw,24px);line-height:1.48;letter-spacing:-.02em;font-weight:570;max-width:68ch;color:var(--ri-text)}.ri-studio .question-meta{display:flex;gap:9px;margin:12px 0 23px;color:var(--ri-muted)}.ri-studio .question-meta p{font-size:11px}.ri-studio .answer-panel{padding:21px;border:1px solid var(--ri-stroke);border-radius:13px;background:var(--ri-panel-2);gap:12px}.ri-studio .answer-label{font-size:12px;font-weight:690}.ri-studio .answer-panel textarea{min-height:150px;background:var(--ri-surface);border:1px solid var(--ri-stroke);color:var(--ri-text);border-radius:11px;padding:15px 17px;font-size:13px;line-height:1.75}.ri-studio .answer-panel textarea:focus{outline:2px solid var(--ri-accent);outline-offset:2px}.ri-studio .answer-controls{display:flex;align-items:center;justify-content:space-between;gap:16px}.ri-studio .answer-character-count{font-size:11px;color:var(--ri-muted)}.ri-studio .answer-evaluate-button{min-width:165px}.ri-studio .answer-evaluation{margin-top:13px;padding-top:20px;border-top:1px solid var(--ri-stroke)}.ri-studio .evaluation-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.ri-studio .evaluation-score{background:var(--ri-soft);border:1px solid var(--ri-stroke);color:var(--ri-accent);border-radius:10px;padding:8px 12px;font-size:20px;font-weight:750}.ri-studio .evaluation-feedback{font-size:13px;line-height:1.75;margin:5px 0 15px}.ri-studio .evaluation-strengths,.ri-studio .evaluation-improvements{margin-top:15px}.ri-studio .evaluation-strengths h5,.ri-studio .evaluation-improvements h5{font-size:12px;margin:0 0 7px}.ri-studio .answer-evaluation ul{font-size:12px;color:var(--ri-muted);line-height:1.7}
+.ri-studio .question-navigation-bottom,.ri-studio .question-navigation-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 28px 24px}.ri-studio .question-page-button{min-height:39px;padding:9px 17px;border:1px solid var(--ri-stroke);background:var(--ri-panel-2);border-radius:9px;color:var(--ri-text);font-size:12px;font-weight:680}.ri-studio .question-page-next{border-color:#4f80b3;color:var(--ri-accent)}.ri-studio .question-page-count{color:var(--ri-muted);font-size:11px}
+.ri-studio .technical{margin-top:27px}.ri-studio .technical summary{font-size:11px;color:var(--ri-muted)}.ri-studio .app-footer{color:var(--ri-muted);font-size:11px;padding:20px 25px 34px;border-top:1px solid var(--ri-stroke);max-width:1290px}
+.ri-studio .status-warning{background:var(--ri-soft);color:var(--ri-text);border:1px solid var(--ri-stroke)}
+/* Workspace-only light palette. The public welcome and authentication pages remain dark. */
+html[data-theme="light"] .ri-studio .ri-skill-chip{background:#e5f0fc!important;border-color:#aecbe9!important;color:#204d81!important}
+html[data-theme="light"] .ri-studio .btn-primary{background:#2b65b4;border-color:#2b65b4;color:#fff}
+@media(max-width:980px){.ri-studio .workspace-header-title{display:none}.ri-studio .setup-grid,.ri-studio .overview-grid,.ri-studio .ri-requirements-grid{grid-template-columns:1fr}.ri-studio .category-checklist-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.ri-studio .header-inner{width:calc(100% - 28px);min-height:70px;gap:10px}.ri-studio .brand-wordmark strong{font-size:11px}.ri-studio .brand-wordmark small{font-size:7px}.ri-studio .brand-mark{width:34px;height:34px;font-size:23px}.ri-studio .user-actions{gap:8px}.ri-studio #userGreeting,.ri-studio .workspace-live{display:none}.ri-studio .theme-toggle{min-height:33px;padding:6px 8px;font-size:10px}.ri-studio .theme-toggle svg{width:15px;height:15px}.ri-studio #logoutBtn{font-size:10px;padding:7px}.ri-studio .app-main{padding:25px 14px 38px}.ri-studio .page-heading{display:block}.ri-studio .workspace-step-caption{display:none}.ri-studio .workflow{gap:7px}.ri-studio .workflow button{min-height:80px;padding:10px 8px;display:block}.ri-studio .workflow-number{width:27px;min-width:27px;height:27px;margin-bottom:6px}.ri-studio .workflow-name{font-size:10px}.ri-studio .workflow-state{font-size:9px;line-height:1.3}.ri-studio .setup-panel{padding:20px 16px}.ri-studio .section-heading h2{font-size:21px}.ri-studio .setup-upload,.ri-studio .setup-context{padding:17px 15px}.ri-studio .setup-actions{display:grid;gap:13px;padding:16px}.ri-studio .setup-actions .btn{width:100%}.ri-studio .processing-stages{display:grid;gap:5px}.ri-studio .tabs{gap:0}.ri-studio .tab{font-size:10px;padding:8px 4px}.ri-studio .results-header h2{font-size:22px}.ri-studio .details-grid{grid-template-columns:1fr}.ri-studio .content-panel{padding:21px 17px}.ri-studio .questions-toolbar{align-items:stretch;flex-direction:column}.ri-studio .questions-toolbar h3{font-size:22px}.ri-studio .preparation-summary{grid-template-columns:1fr;gap:10px}.ri-studio .category-navigator{padding:17px 14px}.ri-studio .category-checklist-list{grid-template-columns:1fr}.ri-studio .selected-category-heading{padding:21px 17px;display:block}.ri-studio .selected-category-heading h4{font-size:20px}.ri-studio .category-source{max-width:none;margin-top:12px}.ri-studio .category-action-area{padding:16px 17px 20px;display:grid}.ri-studio #generateCategoryButton{width:100%}.ri-studio .category-workspace-status{margin:19px 17px 0}.ri-studio .question-navigation-overview{padding:20px 17px}.ri-studio .question-practice-item{padding:22px 17px 6px}.ri-studio .answer-panel{padding:16px 13px}.ri-studio .answer-controls{display:grid}.ri-studio .answer-evaluate-button{width:100%}.ri-studio .question-navigation-bottom,.ri-studio .question-navigation-footer{padding:15px 17px 22px}.ri-studio .app-footer{padding:17px 14px 22px}}
+@media(prefers-reduced-motion:reduce){.ri-studio *, .ri-studio *::before,.ri-studio *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+/* Prevent legacy light question-control rules from leaking into the dark studio. */
+.ri-studio .selected-category .question-pagination-top{display:grid;gap:15px;margin:0;padding:21px 28px;border:0;border-top:1px solid var(--ri-stroke);border-bottom:1px solid var(--ri-stroke);border-radius:0;background:var(--ri-panel-2);color:var(--ri-text)}
+.ri-studio .selected-category .question-navigation-overview{display:flex;align-items:center;justify-content:space-between;gap:13px;border:0;background:transparent;padding:0}
+.ri-studio .selected-category .question-navigation-heading{display:grid;gap:3px}
+.ri-studio .selected-category .question-navigation-track{margin:0;background:var(--ri-track)}
+.ri-studio .selected-category .question-jump-row{padding:0;margin:0}
+.ri-studio .selected-category .question-number-button{background:var(--ri-surface);border-color:var(--ri-stroke);color:var(--ri-text)}
+.ri-studio .selected-category .question-number-button[aria-current="step"]{background:#376fb6;border-color:#6096d4;color:#fff}
+.ri-studio .selected-category .question-number-button.is-evaluated:not([aria-current="step"]){background:var(--ri-soft);border-color:#579c82;color:var(--ri-success)}
+.ri-studio .selected-category .question-number-button.is-answered:not([aria-current="step"]){background:var(--ri-soft);border-color:#719ed0;color:var(--ri-accent)}
+.ri-studio .selected-category .question-list{margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ri-text)}
+.ri-studio .selected-category .question-list>li,.ri-studio .selected-category .question-list>li:first-child,.ri-studio .selected-category .question-list>li:last-child{padding:27px 28px 12px;margin:0;border:0;background:transparent}
+.ri-studio .selected-category .question-meta .badge{background:var(--ri-soft);color:var(--ri-accent);border:1px solid var(--ri-stroke);border-radius:7px;padding:5px 8px}
+.ri-studio .selected-category .question-body{max-width:68ch;font-size:clamp(19px,2vw,24px);font-weight:570;color:var(--ri-text);line-height:1.48}
+.ri-studio .selected-category .answer-panel{margin:0;padding:21px;border:1px solid var(--ri-stroke);background:var(--ri-panel-2);border-radius:13px;color:var(--ri-text)}
+.ri-studio .selected-category .answer-panel textarea{background:var(--ri-surface);border:1px solid var(--ri-stroke);color:var(--ri-text);min-height:150px;border-radius:10px;padding:15px 17px}
+.ri-studio .selected-category .answer-panel .helper{color:var(--ri-muted);font-size:11px}
+.ri-studio .selected-category .question-pagination-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:19px 28px 25px;background:transparent;border:0}
+.ri-studio .selected-category .question-page-button{background:var(--ri-panel-2);color:var(--ri-text);border:1px solid var(--ri-stroke)}
+.ri-studio .selected-category .question-page-button.question-page-next:not(:disabled){background:var(--ri-soft);color:var(--ri-accent);border-color:#4c80b4}
+.ri-studio #setupTitle:focus,.ri-studio #resultsTitle:focus,.ri-studio #questionsStageTitle:focus{outline:none}
+.ri-studio #setupTitle,.ri-studio #resultsTitle,.ri-studio #questionsStageTitle{scroll-margin-top:130px}
+@media(max-width:680px){.ri-studio .selected-category .question-pagination-top{padding:18px 16px}.ri-studio .selected-category .question-list>li,.ri-studio .selected-category .question-list>li:first-child,.ri-studio .selected-category .question-list>li:last-child{padding:22px 16px 12px}.ri-studio .selected-category .answer-panel{padding:16px 13px}.ri-studio .selected-category .question-pagination-bottom{padding:16px 16px 21px}}
+
+
+/* 2026-11-03: Readability and usability refinements.
+   Presentation only. API bindings and app state remain in app.js. */
+
+/* Use a familiar, less condensed-feeling UI typeface and a readable base size. */
+body.ri-studio {
+  font-family: 'Segoe UI', Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  font-weight: 400;
+}
+
+/* Step 1: independent content height, instead of stretching the upload card
+   down to match the taller interview-context card. */
+.ri-studio .setup-grid { align-items: start; }
+.ri-studio .setup-grid > .setup-upload,
+.ri-studio .setup-grid > .setup-context { align-self: start; }
+
+/* Increase small labels and explanatory copy without changing page geometry. */
+.ri-studio .page-heading p,
+.ri-studio .section-heading p,
+.ri-studio .questions-context,
+.ri-studio .results-context { font-size: 14px; line-height: 1.65; }
+.ri-studio .ri-form-panel-heading p,
+.ri-studio .workflow-state,
+.ri-studio .field .helper,
+.ri-studio .setup-actions .helper,
+.ri-studio .ri-skillset-empty { font-size: 12.5px; line-height: 1.6; }
+.ri-studio .field label { font-size: 13px; font-weight: 600; }
+.ri-studio .field input,
+.ri-studio #requiredSkillSearch { font-size: 14px; }
+.ri-studio .ri-skill-chip { font-size: 12.5px !important; }
+
+/* Dark/light-safe searchable dropdowns.
+   The legacy inline component injects a pale hover background. Explicit
+   scoped styles ensure legible contrast in both themes. */
+.ri-studio .ri-role-options,
+.ri-studio .ri-skillset-suggestions {
+  background: var(--ri-surface);
+  color: var(--ri-text);
+  border-color: var(--ri-stroke);
+}
+.ri-studio .ri-role-options .ri-role-option,
+.ri-studio .ri-skillset-suggestions .ri-skill-option {
+  color: var(--ri-text);
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 42px;
+  border-radius: 7px;
+}
+.ri-studio .ri-role-options .ri-role-option:hover,
+.ri-studio .ri-role-options .ri-role-option:focus-visible,
+.ri-studio .ri-role-options .ri-role-option.is-active,
+.ri-studio .ri-role-options .ri-role-option[aria-selected="true"],
+.ri-studio .ri-skillset-suggestions .ri-skill-option:hover,
+.ri-studio .ri-skillset-suggestions .ri-skill-option:focus-visible {
+  color: var(--ri-text);
+  background: var(--ri-soft);
+}
+.ri-studio .ri-role-options .ri-role-option:focus-visible,
+.ri-studio .ri-skillset-suggestions .ri-skill-option:focus-visible {
+  outline: 2px solid var(--ri-accent);
+  outline-offset: -2px;
+}
+
+/* Interview answer and evaluation: body text should be comfortably readable,
+   with soft, controlled weights rather than dense bold blocks. */
+.ri-studio .selected-category .answer-label { font-size: 15px; font-weight: 600; }
+.ri-studio .selected-category .answer-panel textarea {
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.ri-studio .selected-category .answer-panel .helper,
+.ri-studio .selected-category .answer-character-count,
+.ri-studio .selected-category .evaluation-model {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.ri-studio .selected-category .answer-evaluation { gap: 15px; }
+.ri-studio .selected-category .answer-evaluation .evaluation-heading h4 {
+  font-size: 17px;
+  font-weight: 620;
+  letter-spacing: -.01em;
+}
+.ri-studio .selected-category .answer-evaluation .evaluation-feedback {
+  font-size: 15.5px;
+  line-height: 1.8;
+  font-weight: 400;
+}
+.ri-studio .selected-category .answer-evaluation h5 {
+  font-size: 14px;
+  font-weight: 630;
+  margin-bottom: 9px;
+}
+.ri-studio .selected-category .answer-evaluation ul {
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+.ri-studio .selected-category .answer-evaluation li + li { margin-top: 7px; }
+.ri-studio .selected-category .question-meta p,
+.ri-studio .selected-category .category-action-area p { font-size: 13.5px; }
+
+@media (max-width: 680px) {
+  .ri-studio .selected-category .answer-evaluation .evaluation-feedback { font-size: 15px; }
+  .ri-studio .selected-category .answer-evaluation ul { font-size: 14px; }
+  .ri-studio .ri-skillset-suggestions .ri-skill-option { min-height: 44px; }
+}
+
+
+/* Final Step 1 dropdown and AI evaluation corrections.
+   These selectors intentionally outrank the component CSS injected by app.js.
+   No JavaScript behavior, API endpoints, or application data is changed. */
+
+/* The selection popup must FLOAT above following content, not be a third grid row.
+   Its anchor includes selected chips plus the search field, so the popup remains
+   directly below the search field regardless of how many skills are selected. */
+.ri-studio .required-skillset-field,
+.ri-studio .ri-skillset-widget {
+  overflow: visible;
+}
+.ri-studio .ri-skillset-widget {
+  position: relative;
+  z-index: 2;
+}
+.ri-studio .ri-skillset-widget .ri-skillset-suggestions {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
+  z-index: 120;
+  display: grid;
+  gap: 4px;
+  box-sizing: border-box;
+  max-height: min(260px, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 7px;
+  border: 1px solid var(--ri-stroke);
+  border-radius: 11px;
+  background: var(--ri-surface);
+  color: var(--ri-text);
+  box-shadow: 0 16px 35px rgba(0,0,0,.32);
+}
+.ri-studio .ri-skillset-widget .ri-skillset-suggestions[hidden] {
+  display: none !important;
+}
+/* Prevent the dynamic legacy hover style from turning a dark option pale. */
+.ri-studio .ri-skillset-widget .ri-skill-option,
+.ri-studio .ri-role-dropdown .ri-role-option {
+  background: transparent;
+  color: var(--ri-text);
+  border: 1px solid transparent;
+  transition: background-color .14s, border-color .14s;
+}
+.ri-studio .ri-skillset-widget .ri-skill-option:is(:hover,:focus-visible),
+.ri-studio .ri-role-dropdown .ri-role-option:is(:hover,:focus-visible),
+.ri-studio .ri-role-dropdown .ri-role-option.is-active,
+.ri-studio .ri-role-dropdown .ri-role-option[aria-selected="true"] {
+  background: var(--ri-soft);
+  color: var(--ri-text);
+  border-color: var(--ri-stroke);
+}
+/* Step 1 panels size to their own content and do not stretch across the row. */
+.ri-studio .setup-grid { align-items: start; }
+.ri-studio .setup-grid > .setup-upload,
+.ri-studio .setup-grid > .setup-context { align-self: start; }
+
+/* Ignore decorative browser outlines on programmatically focused sections,
+   while retaining visible keyboard focus on interactive form controls. */
+.ri-studio #main:focus,
+.ri-studio #main:focus-visible,
+.ri-studio #questionsPanel:focus,
+.ri-studio #questionsPanel:focus-visible,
+.ri-studio .tabpanel:focus,
+.ri-studio .tabpanel:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Distinct, branded AI feedback card inside the answer composer. */
+.ri-studio .selected-category .answer-evaluation {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 22px 0 4px;
+  padding: 21px 23px 22px;
+  border: 1px solid var(--ri-stroke);
+  border-left: 3px solid var(--ri-accent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--ri-soft) 22%, var(--ri-surface));
+  box-shadow: 0 9px 23px rgba(0,0,0,.07);
+}
+.ri-studio .selected-category .answer-evaluation .evaluation-heading {
+  margin-bottom: 3px;
+}
+.ri-studio .selected-category .answer-evaluation .evaluation-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+.ri-studio .selected-category .answer-evaluation .evaluation-title::before {
+  content: '✦';
+  display: inline-grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 1px solid var(--ri-stroke);
+  border-radius: 8px;
+  color: var(--ri-accent);
+  background: var(--ri-soft);
+  font-size: 14px;
+}
+@media (max-width: 680px) {
+  .ri-studio .selected-category .answer-evaluation {
+    padding: 17px 16px 19px;
+    margin-top: 20px;
+  }
+  .ri-studio .ri-skillset-widget .ri-skillset-suggestions {
+    max-height: min(235px, 42vh);
+  }
+}
+
+
+/* Balanced professional light theme */
+
+html[data-theme="light"] .ri-studio .panel,
+html[data-theme="light"] .ri-studio .workflow button,
+html[data-theme="light"] .ri-studio .setup-upload,
+html[data-theme="light"] .ri-studio .setup-context {
+  box-shadow: 0 2px 10px rgba(30, 41, 59, 0.04);
+}
+
+/* Keep inputs distinct from their surrounding panels */
+html[data-theme="light"] .ri-studio .field input,
+html[data-theme="light"] .ri-studio #requiredSkillSearch,
+html[data-theme="light"] .ri-studio .selected-category .answer-panel textarea {
+  background: #f8fafc;
+}
+
+/* Make inactive workflow steps easier to read */
+html[data-theme="light"] .ri-studio .workflow button:disabled {
+  opacity: 0.82;
+}
+
+/* LIGHT MODE — Main setup container */
+html[data-theme="light"] .ri-studio .setup-panel {
+  background: #dfe6ee;
+  border: 1px solid #b9c7d6;
+  box-shadow: 0 3px 14px rgba(30, 41, 59, 0.05);
+}
+
+/* LIGHT MODE — Top workflow cards */
+html[data-theme="light"] .ri-studio .workflow button {
+  background: #d8e1eb;
+  border: 1px solid #b9c7d6;
+  box-shadow: 0 2px 7px rgba(30, 41, 59, 0.04);
+}
+
+/* Active workflow card */
+html[data-theme="light"] .ri-studio .workflow button[aria-current="step"] {
+  background: #c5d9f2;
+  border-color: #6d9ed9;
+}
+
+/* Disabled cards should not look washed out */
+html[data-theme="light"] .ri-studio .workflow button:disabled {
+  opacity: 1;
+}
+
+/* Inactive card descriptions */
+html[data-theme="light"] .ri-studio .workflow button:disabled .workflow-state {
+  color: #64748b;
+}
+
+/* Precisely center the workspace logo */
+
+.ri-studio .brand-mark {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.ri-studio .brand-mark svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}

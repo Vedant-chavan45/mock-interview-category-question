@@ -83,9 +83,9 @@ async function main(args = process.argv.slice(2)) {
   try {
     const stat = await fs.stat(selection.pdfPath);
     if (!stat.isFile()) throw new Error('Not a file');
-    pdfService.validateFile({ size: stat.size,
-      mimetype: path.extname(selection.pdfPath).toLowerCase() === '.pdf' ? 'application/pdf' : 'application/octet-stream' });
     buffer = await fs.readFile(selection.pdfPath);
+    pdfService.validateFile({ size: stat.size, buffer,
+      mimetype: path.extname(selection.pdfPath).toLowerCase() === '.pdf' ? 'application/pdf' : 'application/octet-stream' });
   } catch (error) {
     console.error(error instanceof pdfService.UnreadableResumeError
       ? 'PDF rejected: supply a PDF within the existing 5 MB limit.'

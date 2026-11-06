@@ -19,6 +19,8 @@ const path = require('path');
 const crypto = require('crypto');
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB, matches FR2/NFR limits
+const MAX_RESUME_PAGES = 10;
+const MAX_EXTRACTED_TEXT_LENGTH = 100000;
 const MIN_USABLE_TEXT_LENGTH = 50; // below this, we treat the PDF as "unreadable"
 
 class UnreadableResumeError extends Error {
@@ -36,12 +38,17 @@ function validateFile(file) {
   if (!file) {
     throw new UnreadableResumeError('No file was uploaded.');
   }
-  if (file.mimetype !== 'application/pdf') {
-    throw new UnreadableResumeError(
-      `Invalid file type: ${file.mimetype}. Only application/pdf is accepted.`
-    );
+  const pdfFilename = typeof file.originalname === 'string' && /\.pdf$/i.test(file.originalname);
+  const recognizedMime = file.mimetype === 'application/pdf' ||
+    ((file.mimetype === '' || file.mimetype === 'application/octet-stream') && pdfFilename);
+  if (!recognizedMime) {
+    throw new UnreadableResumeError('Only PDF resumes are supported.');
   }
-  if (file.size > MAX_FILE_SIZE_BYTES) {
+  if (!Buffer.isBuffer(file.buffer) || file.buffer.length === 0 ||
+      !file.buffer.subarray(0, 16).toString('latin1').startsWith('%PDF-')) {
+    throw new UnreadableResumeError('This is not a valid PDF file. Please upload a genuine PDF resume.');
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES || file.buffer.length > MAX_FILE_SIZE_BYTES) {
     throw new UnreadableResumeError(
       `File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Limit is ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB.`
     );
@@ -60,20 +67,21 @@ function validateFile(file) {
  * Returns null (never throws) if `pdftotext` isn't installed or also
  * fails — callers treat that the same as "primary extraction failed".
  */
-function extractTextWithPdftotext(fileBuffer) {
-  return new Promise((resolve) => {
-    const tmpFile = path.join(os.tmpdir(), `resume-${crypto.randomUUID()}.pdf`);
-    fs.writeFileSync(tmpFile, fileBuffer);
-
-    execFile('pdftotext', ['-layout', tmpFile, '-'], { maxBuffer: 10 * 1024 * 1024 }, (err, stdout) => {
-      fs.unlink(tmpFile, () => {}); // best-effort cleanup, don't block on it
-      if (err || !stdout) {
-        resolve(null);
-        return;
-      }
-      resolve(stdout);
+async function extractTextWithPdftotext(fileBuffer) {
+  const tmpFile = path.join(os.tmpdir(), `resume-${crypto.randomUUID()}.pdf`);
+  try {
+    await fs.promises.writeFile(tmpFile, fileBuffer, { flag: 'wx', mode: 0o600 });
+    return await new Promise((resolve) => {
+      execFile('pdftotext', ['-layout', tmpFile, '-'], {
+        maxBuffer: 2 * 1024 * 1024,
+        timeout: 15000,
+      }, (err, stdout) => resolve(err || !stdout ? null : stdout));
     });
-  });
+  } catch {
+    return null;
+  } finally {
+    await fs.promises.unlink(tmpFile).catch(() => {});
+  }
 }
 
 /**
@@ -101,7 +109,7 @@ async function extractText(fileBuffer) {
     const fallbackText = await extractTextWithPdftotext(fileBuffer);
     if (fallbackText) {
       rawText = fallbackText;
-      pageCount = (fallbackText.match(/\f/g) || []).length + 1; // form-feed = page break
+      pageCount = (fallbackText.replace(/\f+\s*$/, '').match(/\f/g) || []).length + 1;
     }
   }
 
@@ -112,6 +120,10 @@ async function extractText(fileBuffer) {
       'No usable text could be extracted from this PDF. It may be a scanned image ' +
       'rather than a text-based document; OCR is not part of the current MVP scope.'
     );
+  }
+
+  if (pageCount > MAX_RESUME_PAGES || cleaned.length > MAX_EXTRACTED_TEXT_LENGTH) {
+    throw new UnreadableResumeError('This PDF is too long to be a supported resume (maximum 10 pages and 100,000 extracted characters).');
   }
 
   return {
@@ -144,4 +156,5 @@ module.exports = {
   cleanText,
   UnreadableResumeError,
   MAX_FILE_SIZE_BYTES,
+  MAX_RESUME_PAGES,
 };

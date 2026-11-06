@@ -54,14 +54,6 @@ const QUESTION_EXAMPLES = Object.freeze({
   failure_recovery: 'A feature stops working. How would you find the cause?',
   engineering_tradeoffs: 'How would you choose between two ways of building a feature?',
 
-  // Technical skills and concepts
-  implementation_mechanics: 'How would you use a listed skill to build a small feature?',
-  architecture_integration: 'How do you connect a listed technology to the rest of an app?',
-  debugging_failure_modes: 'A feature using this technology stops working. How would you find the cause?',
-  performance_optimization: 'A feature using this skill becomes slow under load. What would you check first?',
-  security_correctness: 'How would you check that data handled by this skill is safe?',
-  technical_tradeoffs: 'When would you choose this technology instead of another option?',
-
   // Project deep dive
   project_purpose_architecture: 'What problem was this project built to solve?',
   individual_contribution: 'Tell me about your role in building this project.',
@@ -272,23 +264,23 @@ const categories = Object.freeze({
   }),
   technical_concepts: Object.freeze({
     id: 'technical_concepts', label: 'Technical Skills & Concepts',
-    description: 'Check whether the candidate can explain and use the skills listed in the resume.',
+    description: 'Assess the employer-required skills, whether or not they appear in the resume.',
     legacyType: 'technical',
-    instruction: 'Ask how the candidate would use a listed skill in an everyday task, check that it works, or fix a common problem. Use only listed technologies. Avoid textbook definitions and unexplained jargon.',
+    instruction: 'Assess the dynamically planned subtopic and objective for each technical target. Employer-required skills take priority and are never evidence of candidate experience. When no employer-required skills are selected, label the assessment as resume-skill or role-based fallback.',
     slots: freezeSlots([
-      slot('implementation_mechanics', 'Using a listed technology to build a feature and checking that it works.'),
-      slot('architecture_integration', 'Connecting a listed technology to the other parts of an application.'),
-      slot('debugging_failure_modes', 'Finding the cause when a feature using a listed technology stops working.'),
-      slot('performance_optimization', 'Finding why a feature using a listed technology is slow and checking an improvement.'),
-      slot('security_correctness', 'Checking input and protecting data when using a listed technology.'),
-      slot('technical_tradeoffs', 'Choosing when to use a listed technology and when another option may be better.'),
+      slot('technical_assessment_1', 'Assess the first independently planned technical subtopic.'),
+      slot('technical_assessment_2', 'Assess the second independently planned technical subtopic.'),
+      slot('technical_assessment_3', 'Assess the third independently planned technical subtopic.'),
+      slot('technical_assessment_4', 'Assess the fourth independently planned technical subtopic.'),
+      slot('technical_assessment_5', 'Assess the fifth independently planned technical subtopic.'),
+      slot('technical_assessment_6', 'Assess the sixth independently planned technical subtopic.'),
     ]),
   }),
   project_deep_dive: Object.freeze({
     id: 'project_deep_dive', label: 'Project Deep Dive',
-    description: 'Talk through what the candidate built, the part they handled, and what they learned.',
+    description: 'Explore project architecture, tech stack rationale, end-to-end flow, implementation and design trade-offs.',
     legacyType: 'project',
-    instruction: 'Ask like an interviewer who has just heard the candidate describe this project. Use real project names and details from the resume. Ask what it does, what the candidate worked on, how it works, how it was tested, and what they would improve. Do not invent features or results.',
+    instruction: 'Prioritize architecture, modules, technical stack and why it was chosen, data flow, real implementation decisions, integration and edge cases. Only one or two questions may cover broad ownership or improvement. Use actual project titles and documented technologies; when details are absent, ask the candidate to explain rather than assert they exist. Do not invent features or outcomes.',
     slots: freezeSlots([
       slot('project_purpose_architecture', 'What problem the project was built to solve and how its main parts fit together.'),
       slot('individual_contribution', 'Which part of the project the candidate personally worked on or what role they played in building it.'),
@@ -306,7 +298,7 @@ const categories = Object.freeze({
     slots: freezeSlots([
       slot('responsibilities_ownership', 'A task or responsibility the candidate personally handled.'),
       slot('technical_contribution', 'A real technical task the candidate worked on and how they approached or investigated it.'),
-      slot('challenge_investigation', 'A real problem the candidate faced and how they worked out what caused it.'),
+      slot('challenge_investigation', 'A documented work responsibility, inviting an actual challenge if one arose, without presuming a specific incident.'),
       slot('collaboration_coordination', 'Working with teammates or other people to finish a task.'),
       slot('testing_outcome_verification', 'How the candidate checked that a change worked as expected.'),
       slot('learning_growth', 'Something the candidate learned from work and what they changed afterward.'),
@@ -327,10 +319,10 @@ const categories = Object.freeze({
     instruction: 'Explore ownership, teamwork, communication, feedback, disagreement, accountability, prioritization, and learning. Questions may ask about a real example or a realistic hypothetical people-focused situation. Keep the wording natural and conversational; do not claim an invented event actually happened to the candidate.',
     slots: freezeSlots([
       slot('ownership_accountability', 'A real example of taking ownership and following through on a responsibility.'),
-      slot('feedback_action', 'A time feedback was received and turned into a specific action or change.'),
-      slot('disagreement_handling', 'A real disagreement and how the candidate discussed it respectfully.'),
+      slot('feedback_action', 'How the candidate would seek and apply feedback, inviting a real example if available.'),
+      slot('disagreement_handling', 'How the candidate would respectfully handle differing opinions; request a real example only if one exists.'),
       slot('team_collaboration', 'A concrete example of collaborating with others toward shared work.'),
-      slot('mistake_learning', 'A real bug, mistake, or setback the candidate handled and what they learned from it.'),
+      slot('mistake_learning', 'How the candidate takes responsibility, learns from setbacks or would respond to an error; do not presume a real mistake.'),
       slot('communication_prioritization', 'A situation requiring clear communication and prioritization under constraints.'),
     ]),
   }),

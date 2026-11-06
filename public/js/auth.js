@@ -12,8 +12,9 @@
     busy = value;
     $('authFields').disabled = value;
     $('toggleMode').disabled = value;
+    $('authLoginTab').disabled = value;
     form.setAttribute('aria-busy', String(value));
-    $('loginBtn').textContent = label || (signup ? 'Create account' : 'Sign in');
+    $('loginBtn').innerHTML = (label || (signup ? 'Create account' : 'Sign in')) + ' <span aria-hidden="true">→</span>';
   }
   function fieldError(id, message = '') {
     $(id).setAttribute('aria-invalid', String(Boolean(message)));
@@ -47,9 +48,9 @@
       button.setAttribute('aria-label', (show ? 'Hide ' : 'Show ') + (input.id === 'password' ? 'password' : 'confirmation password'));
     });
   });
-  $('toggleMode').addEventListener('click', () => {
-    if (busy) return;
-    signup = !signup;
+  function chooseMode(nextSignup) {
+    if (busy || signup === nextSignup) return;
+    signup = nextSignup;
     clearErrors(); resetVisibility();
     $('nameField').hidden = $('confirmField').hidden = $('passwordHelp').hidden = !signup;
     $('name').required = $('confirmPassword').required = signup;
@@ -59,12 +60,20 @@
     $('authSubtitle').textContent = signup ? 'Start with your experience. Prepare with direction.' : 'Sign in to prepare for your next opportunity.';
     $('authLegend').textContent = signup ? 'Create account details' : 'Sign in details';
     $('switchPrompt').textContent = signup ? 'Already have an account?' : 'New to Resume Intelligence?';
-    $('toggleMode').textContent = signup ? 'Sign in instead' : 'Create an account';
+    $('toggleMode').textContent = 'Create account';
+    $('toggleMode').classList.toggle('is-active', signup);
+    $('toggleMode').setAttribute('aria-pressed', String(signup));
+    $('authLoginTab').classList.toggle('is-active', !signup);
+    $('authLoginTab').setAttribute('aria-pressed', String(!signup));
+    $('password').placeholder = signup ? 'At least 8 characters' : 'Enter your password';
+    $('loginBtn').innerHTML = (signup ? 'Create account' : 'Sign in') + ' <span aria-hidden="true">→</span>';
     document.title = (signup ? 'Create account' : 'Sign in') + ' | Resume Intelligence';
     document.querySelector('.skip-link').textContent = signup ? 'Skip to create account' : 'Skip to sign in';
     setBusy(false);
     $(signup ? 'name' : 'email').focus();
-  });
+  }
+  $('toggleMode').addEventListener('click', () => chooseMode(true));
+  $('authLoginTab').addEventListener('click', () => chooseMode(false));
   ['name', 'email', 'password', 'confirmPassword'].forEach(id => {
     $(id).addEventListener('input', () => fieldError(id));
   });
@@ -76,7 +85,7 @@
     $('retryAuth').hidden = true; clearErrors(); setBusy(true);
     try {
       const token = localStorage.getItem('resumeAppToken');
-      if (!token) { setBusy(false); return; }
+      if (!token) { setBusy(false); if (window.location.hash === '#signup' && !signup) chooseMode(true); return; }
       $('authStatus').textContent = 'Checking your saved sign-in...';
       const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` }, signal: request.signal });
       if (current !== sequence || leaving) return;

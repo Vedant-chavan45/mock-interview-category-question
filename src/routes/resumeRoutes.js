@@ -19,11 +19,12 @@ const { MAX_FILE_SIZE_BYTES } = require('../services/pdfService');
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE_BYTES },
+  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 4, parts: 5, fieldSize: 8192 },
 });
 
 const router = express.Router();
 
+router.post('/validate', upload.single('resume'), resumeController.validateResumeUpload);
 router.post('/upload', upload.single('resume'), resumeController.uploadResume);
 router.get('/:id', resumeController.getResume);
 router.get('/:id/context', resumeController.getContext);

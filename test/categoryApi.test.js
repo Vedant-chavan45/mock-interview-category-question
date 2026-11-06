@@ -73,6 +73,7 @@ test('category API never presents rule-based output as a successful generated se
 
 test('category API exposes insufficient evidence and sanitizes generation failures', async (t) => {
   t.mock.method(Resume, 'findOne', () => ({ lean: async () => record }));
+  const update = t.mock.method(Resume, 'updateOne', async () => ({ matchedCount: 1 }));
   const generate = t.mock.method(generator, 'generateCategoryQuestions', async () => {
     throw Object.assign(new Error('private resume text must not escape'), { code: 'INSUFFICIENT_RESUME_EVIDENCE' });
   });
@@ -88,6 +89,64 @@ test('category API exposes insufficient evidence and sanitizes generation failur
   assert.equal(failure.statusCode, 503);
   assert.equal(failure.body.errorCode, 'generation-failed');
   assert.doesNotMatch(JSON.stringify(failure.body), /private resume text/);
+  assert.equal(update.mock.callCount(), 0, 'failed generation must not replace the last saved set');
+});
+
+test('technical regeneration persists bounded coverage and preserves the prior answered set in history', async (t) => {
+  const previous = {
+    question: 'How do Python generators resume after yield?',
+    answer: 'They continue from the suspended frame.',
+    evaluation: { score: 8, feedback: 'Clear explanation.' },
+    primaryRequiredSkill: 'Python', subtopic: 'generator iteration and yield',
+    assessmentObjective: 'trace iterator state after yield', coverageSignature: 'python|generator|state',
+  };
+  const savedRecord = {
+    resumeContext: { ...record.resumeContext, requiredSkillset: ['Python', 'Pandas'] },
+    practice: { categories: { technical_concepts: {
+      status: 'ready', questions: [previous], skillsCovered: ['Python'], generationNumber: 1,
+      coverage: [{ primaryRequiredSkill: 'Python', subtopic: previous.subtopic, coverageSignature: previous.coverageSignature }],
+    } } },
+  };
+  t.mock.method(Resume, 'findOne', () => ({ lean: async () => savedRecord }));
+  t.mock.method(generator, 'generateCategoryQuestions', async (_context, category, options) => {
+    assert.equal(category, 'technical_concepts');
+    assert.equal(options.force, true);
+    assert.equal(options.history[0].questions[0].answer, previous.answer);
+    assert.equal(options.history[0].questions[0].evaluation.score, 8);
+    const model = 'llama3.2';
+    return {
+      category, model, source: `ollama-${model}`, status: 'ready', metrics: {},
+      questions: Array.from({ length: 6 }, (_, index) => {
+        const primaryRequiredSkill = index % 2 ? 'Pandas' : 'Python';
+        return {
+          question: `How does ${primaryRequiredSkill} handle assessment case ${index}?`,
+          primaryRequiredSkill, primaryAssessmentTarget: primaryRequiredSkill,
+          subtopic: `${primaryRequiredSkill} subtopic ${index}`, assessmentObjective: `objective ${index}`,
+          coverageSignature: `${primaryRequiredSkill.toLowerCase()}|subtopic-${index}`,
+          evidenceIds: [], evidenceProvenance: { kind: 'required_skill_assessment' },
+        };
+      }),
+    };
+  });
+  const update = t.mock.method(Resume, 'updateOne', async (filter, change) => {
+    assert.equal(filter._id, resumeId);
+    assert.equal(filter.userId, userId);
+    const saved = change.$set['practice.categories.technical_concepts'];
+    assert.equal(saved.generationNumber, 2);
+    assert.equal(saved.history.length, 1);
+    assert.equal(saved.history[0].questions[0].answer, previous.answer);
+    assert.deepEqual(saved.history[0].questions[0].evaluation, previous.evaluation);
+    assert.equal(saved.questions.length, 6);
+    assert.equal(saved.questions[0].answer, '');
+    assert.ok(saved.coverageLedger.find((entry) => entry.skill === 'Python').assessmentCount >= 1);
+    assert.ok(saved.coverageLedger.find((entry) => entry.skill === 'Pandas').assessmentCount >= 1);
+    return { matchedCount: 1 };
+  });
+  const response = res();
+  await controller.generateCategoryQuestions(req(userId, 'technical_concepts'), response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.generationNumber, 2);
+  assert.equal(update.mock.callCount(), 1);
 });
 
 test('category API rejects overlapping generation for the same resume and category', async (t) => {

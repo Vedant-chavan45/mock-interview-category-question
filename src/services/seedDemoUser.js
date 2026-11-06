@@ -33,6 +33,8 @@ async function findExisting(config) {
 }
 
 async function seedDemoUser() {
+  // Production must opt in explicitly; don't publish a predictable demo account.
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_USER !== '1') return null;
   const config = getDemoConfig();
   const existing = await findExisting(config);
   if (existing) return existing;

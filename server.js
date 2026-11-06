@@ -21,12 +21,34 @@ const { requireAuth } = require('./src/middleware/authMiddleware');
 
 const { connectDatabase, getDatabaseState } = require('./src/config/database');
 const { initializeUsers, DemoSeedError } = require('./src/services/seedDemoUser');
+const { validateSecurityEnvironment } = require('./src/config/security');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+// Never expose development/demo credentials on the LAN by default.
+const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+// Enable only when behind a trusted reverse proxy that sanitizes X-Forwarded-For.
+const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
+if (Number.isInteger(proxyHops) && proxyHops > 0 && proxyHops <= 3) {
+  app.set('trust proxy', proxyHops);
+}
 
-app.use(cors());
-app.use(express.json());
+// Same-origin frontend is the default; explicitly allow known external frontends.
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
+if (allowedOrigins.length) {
+  app.use(cors({ origin(origin, callback) {
+    callback(null, Boolean(origin && allowedOrigins.includes(origin)));
+  }, methods: ['GET', 'POST'], allowedHeaders: ['Content-Type', 'Authorization'] }));
+}
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+app.use(express.json({ limit: '64kb' }));
 
 app.get('/health', (req, res) => {
   const mongodb = getDatabaseState();
@@ -39,6 +61,9 @@ app.use('/api/auth', authRoutes);
 // Resume routes sit behind a login (matches the team's JWT + bcrypt stack
 // on the HLD slide) — see src/middleware/authMiddleware.js.
 app.use('/api/resume', requireAuth, resumeRoutes);
+
+// Public welcome page; /index.html remains the authenticated application.
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'welcome.html')));
 
 // Static demo webpage — login page + drag-and-drop resume UI, so the
 // module can be demoed in a browser instead of via curl/Postman.
@@ -56,7 +81,8 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-  connectDatabase().then(initializeUsers).then(() => app.listen(PORT, () => {
+  validateSecurityEnvironment();
+  connectDatabase().then(initializeUsers).then(() => app.listen(PORT, HOST, () => {
     console.log(`Resume Processing module listening on http://localhost:${PORT}`);
     console.log(`Demo webpage:  http://localhost:${PORT}/`);
   })).catch(async (err) => {

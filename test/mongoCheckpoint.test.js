@@ -140,7 +140,13 @@ test('upload saves metadata and ownership, excludes binary/text, preserves respo
   t.mock.method(pdf, 'extractText', async () => ({ text, pageCount: 1 }));
   t.mock.method(ollama, 'analyseResume', async () => analysis);
   t.mock.method(Resume, 'create', async (data) => {
-    assert.deepEqual(data, record);
+    const expected = {
+      ...record,
+      resumeContext: contextBuilder.build(parsedResume, analysis, {
+        interviewType: 'Technical', targetRole: 'Developer', requiredSkillset: ['JavaScript', 'MongoDB'],
+      }),
+    };
+    assert.deepEqual(data, expected);
     const doc = new Resume(data);
     await doc.validate();
     assert.deepEqual(doc.toObject().resumeContext.experience, parsedResume.experience);
@@ -151,8 +157,8 @@ test('upload saves metadata and ownership, excludes binary/text, preserves respo
   const res = response();
   await controller.uploadResume({
     ...request(),
-    file: { originalname: 'resume.pdf', mimetype: 'application/pdf', size: 20, buffer: Buffer.from('not persisted') },
-    body: { interviewType: 'Technical', targetRole: 'Developer' },
+    file: { originalname: 'resume.pdf', mimetype: 'application/pdf', size: 20, buffer: Buffer.from('%PDF-1.4\nnot persisted') },
+    body: { interviewType: 'Technical', targetRole: 'Developer', requiredSkillset: '["JavaScript","MongoDB"]' },
   }, res);
   assert.equal(res.statusCode, 201);
   assert.deepEqual(res.body, { resumeId: id, pageCount: 1, parsedResume, analysis });

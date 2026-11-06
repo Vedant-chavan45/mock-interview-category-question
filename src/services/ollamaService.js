@@ -19,10 +19,14 @@
  * -----------------------------------------------------------------------
  */
 
-const axios = require('axios');
+const { performance } = require('node:perf_hooks');
+const modelGateway = require('../ai/modelGateway');
+const { getAIConfig, getAISource } = require('../ai/config');
+const telemetry = require('../ai/telemetry');
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
+const currentModel = () => getAIConfig().model;
+const currentProvider = () => getAIConfig().provider;
 const MAX_RETRIES = 1;
 const REQUEST_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS || 120000);
 
@@ -31,18 +35,19 @@ const REQUEST_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS || 120000);
  * Throws if Ollama is unreachable or times out — callers are expected to
  * catch this and fall back, never to let it bubble up to the HTTP response.
  */
-async function generate(prompt) {
-  const response = await axios.post(
-    `${OLLAMA_BASE_URL}/api/generate`,
-    {
-      model: OLLAMA_MODEL,
-      prompt,
-      stream: false,
-      format: 'json',
-    },
-    { timeout: REQUEST_TIMEOUT_MS }
-  );
-  return response.data.response;
+async function generate(prompt, { retryCount = 0 } = {}) {
+  const response = await modelGateway.generateStructured({
+    operation: 'resume_analysis',
+    stage: 'resume_analysis',
+    retryCount,
+    model: currentModel(),
+    baseUrl: OLLAMA_BASE_URL,
+    prompt,
+    format: 'json',
+    streaming: false,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+  });
+  return response.response;
 }
 
 /**
@@ -64,16 +69,34 @@ function parseJson(reply) {
  * ask again up to MAX_RETRIES times before giving up.
  */
 async function generateJsonWithRetry(prompt, retries = MAX_RETRIES) {
+  const startedAt = performance.now();
   let lastError;
+  let attempts = 0;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    attempts += 1;
     try {
-      const reply = await generate(prompt);
-      return parseJson(reply);
+      const reply = await generate(prompt, { retryCount: attempt });
+      const result = parseJson(reply);
+      telemetry.recordOperation({
+        operation: 'resume_analysis', provider: currentProvider(), model: currentModel(),
+        stage: 'end_to_end', outcome: 'success',
+        elapsedMs: performance.now() - startedAt, modelCallCount: attempts,
+        retryCount: attempts - 1,
+      });
+      return result;
     } catch (err) {
       lastError = err;
       // Network errors and timeouts are not helped by repeating the same call.
       // Retry only a complete response whose body failed JSON parsing.
-      if (!(err instanceof SyntaxError) || attempt >= retries) throw err;
+      if (!(err instanceof SyntaxError) || attempt >= retries) {
+        telemetry.recordOperation({
+          operation: 'resume_analysis', provider: currentProvider(), model: currentModel(),
+          stage: 'end_to_end', outcome: 'failure', error: err,
+          elapsedMs: performance.now() - startedAt, modelCallCount: attempts,
+          retryCount: Math.max(0, attempts - 1),
+        });
+        throw err;
+      }
     }
   }
   throw lastError;
@@ -124,11 +147,18 @@ function heuristicFallbackAnalysis(parsedResume) {
  * heuristic fallback above.
  */
 async function analyseResume(parsedResume) {
+  const startedAt = performance.now();
   try {
     const prompt = buildAnalysisPrompt(parsedResume);
     const result = await generateJsonWithRetry(prompt);
-    return { ...result, source: 'ollama-llama3.2' };
+    return { ...result, source: currentProvider() === 'ollama' ? 'ollama-llama3.2' : getAISource() };
   } catch (err) {
+    if (err?.code === 'AI_PROVIDER_UNSUPPORTED') throw err;
+    telemetry.recordOperation({
+      operation: 'resume_analysis', provider: currentProvider(), model: currentModel(),
+      stage: 'end_to_end', outcome: 'fallback', error: err,
+      elapsedMs: performance.now() - startedAt, modelCallCount: 1,
+    });
     return heuristicFallbackAnalysis(parsedResume);
   }
 }

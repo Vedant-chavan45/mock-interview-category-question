@@ -88,7 +88,7 @@ test('the selected workspace has one explicit generate or regenerate action usin
   assert.match(app, /if \(!state\.current \|\| state\.categoryBusy/);
   assert.match(app, /state\.categoryBusy = categoryId/);
   assert.match(app, /state\.categoryErrors\[selected\?\.id\] \? 'Retry generation' : hasQuestions \? 'Regenerate Questions' : 'Generate 6 Questions'/);
-  assert.match(app, /snapshot\?\.targetRole[\s\S]*?snapshot\?\.interviewType/);
+  assert.match(app, /body\.append\('targetRole', snapshot\.targetRole\)[\s\S]*?body\.append\('interviewType', snapshot\.interviewType\)/);
   assert.match(app, /if \(isCurrent\(\)\) \{ state\.categoryBusy = ''; syncControls\(\); \}/);
   assert.equal((app.match(/fetch\(`\/api\/resume\/\$\{encodeURIComponent\(resumeId\)\}\/questions\/\$\{encodeURIComponent\(categoryId\)\}`/g) || []).length, 1);
   assert.doesNotMatch(app, /fetch\(`\/api\/resume\/\$\{encodeURIComponent\(resumeId\)\}\/questions`/);
@@ -105,10 +105,11 @@ test('category source is honest and failed regeneration retains the previous set
   assert.doesNotMatch(generator, /delete state\.categoryQuestions\[categoryId\]/);
   assert.match(generator, /state\.categoryErrors\[categoryId\] = error\.message/);
   const sourceRenderer = app.match(/function source\([\s\S]*?(?=function detailsSection\b)/)?.[0] || '';
-  assert.match(sourceRenderer, /\^ollama-\[a-z0-9\]/);
+  assert.match(sourceRenderer, /ollama\|groq/); // recognize both real provider labels
   assert.match(sourceRenderer, /sourceValue === 'heuristic-fallback'/);
   assert.doesNotMatch(sourceRenderer, /sourceValue\.startsWith\('ollama'\)/);
   assert.match(generator, /data\.source !== `ollama-\$\{data\.model\}`/);
+  assert.match(generator, /data\.source !== `groq-\$\{data\.model\}`/);
   assert.match(generator, /data\.questions\.length !== 6/);
   assert.match(app, /Insufficient resume evidence/);
   assert.match(generator, /state\.categoryInsufficient\[categoryId\] = data\.error/);
@@ -171,7 +172,7 @@ test('an evaluating question locks its own evaluate button and exposes accessibl
   assert.match(renderer, /answerRequests\.has\(key\)/);
   assert.match(renderer, /button\.disabled = busy \|\| !state\.authenticated/);
   assert.match(renderer, /button\.setAttribute\('aria-busy', String\(busy\)\)/);
-  assert.match(renderer, /Evaluating with Ollama/);
+  assert.match(renderer, /Evaluating with AI/);
   const evaluate = app.match(/async function evaluateAnswer\([\s\S]*?(?=async function loadPractice\b)/)?.[0] || '';
   assert.match(evaluate, /if \(state\.answerBusy\[key\] \|\| answerRequests\.has\(key\)\) return/);
   assert.doesNotMatch(evaluate, /answerRequests\.get\(key\)\?\.abort\(\)/);

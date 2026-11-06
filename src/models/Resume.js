@@ -13,6 +13,7 @@ const evidenceProjectSchema = nested({ id: String, ...projectFields, duration: S
 const evidenceExperienceSchema = nested({ id: String, role: String, organisation: String, duration: String, responsibilities: [String] });
 const structuredEvidenceSchema = nested({
   targetRole: nested({ id: String, value: String }),
+  requiredSkillset: [evidenceItemSchema],
   skills: [evidenceItemSchema],
   projects: [evidenceProjectSchema],
   experience: [evidenceExperienceSchema],
@@ -60,6 +61,7 @@ const contextSchema = nested({
   skillAreasToProbe: [String],
   interviewType: String,
   targetRole: String,
+  requiredSkillset: [String],
   analysisSource: String,
   structuredEvidence: structuredEvidenceSchema,
 });

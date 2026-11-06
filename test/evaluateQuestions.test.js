@@ -65,7 +65,7 @@ test('service-layer evaluation generates only the selected role or all four by d
   const ollama = require('../src/services/ollamaService');
   const axios = require('axios');
   t.mock.method(fs, 'stat', async () => ({ isFile: () => true, size: 10 }));
-  t.mock.method(fs, 'readFile', async () => Buffer.from('mocked input'));
+  t.mock.method(fs, 'readFile', async () => Buffer.from('%PDF-1.4\nmocked input'));
   t.mock.method(pdf, 'extractText', async () => ({ text: 'Skills\nNode.js, MongoDB', pageCount: 1 }));
   const analyse = t.mock.method(ollama, 'analyseResume', async () => ({
     summary: '', strengths: [], skillAreasToProbe: [], source: 'heuristic-fallback',

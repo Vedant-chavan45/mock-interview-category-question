@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in | Resume Intelligence</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <script src="/js/auth.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#authTitle">Skip to sign in</a>
+<header class="auth-header"><a class="brand" href="/login.html"><span class="brand-mark" aria-hidden="true">ri</span>Resume Intelligence</a></header>
+<main class="auth-layout">
+  <section class="auth-intro" aria-labelledby="productTitle">
+    <span class="eyebrow">Interview preparation, with direction</span>
+    <h1 id="productTitle">Turn your resume into focused interview preparation.</h1>
+    <p>Understand what your experience says about you, then prepare for the questions it could inspire.</p>
+    <ol class="auth-benefits">
+      <li><span class="step-no" aria-hidden="true">01</span><div><strong>Start with your resume</strong><p>Bring your experience, skills and projects together.</p></div></li>
+      <li><span class="step-no" aria-hidden="true">02</span><div><strong>Find your focus</strong><p>Review your strengths and areas to prepare.</p></div></li>
+      <li><span class="step-no" aria-hidden="true">03</span><div><strong>Prepare with relevant questions</strong><p>Use your resume and target role to guide your practice.</p></div></li>
+    </ol>
+  </section>
+  <section class="panel auth-panel" aria-labelledby="authTitle">
+    <div class="auth-panel-header"><h2 id="authTitle" tabindex="-1">Welcome back</h2><p id="authSubtitle">Sign in to prepare for your next opportunity.</p></div>
+    <div id="authStatus" class="status" role="status" aria-live="polite"></div>
+    <div id="authError" class="status status-error" role="alert"></div>
+    <button id="retryAuth" class="btn btn-secondary full-width" type="button" hidden>Retry connection</button>
+    <form id="loginForm" novalidate aria-busy="false">
+      <fieldset id="authFields" disabled>
+        <legend class="sr-only" id="authLegend">Sign in details</legend>
+        <div class="auth-fields">
+          <div class="field" id="nameField" hidden><label for="name">Name</label><input id="name" name="name" autocomplete="name" maxlength="100" aria-describedby="nameError" /><p id="nameError" class="field-error" hidden></p></div>
+          <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="username" maxlength="254" required aria-describedby="emailError" /><p id="emailError" class="field-error" hidden></p></div>
+          <div class="field"><label for="password">Password</label><div class="password-control"><input type="password" id="password" name="password" autocomplete="current-password" required aria-describedby="passwordHelp passwordError" /><button type="button" class="btn btn-quiet password-toggle" data-password="password" aria-label="Show password" aria-controls="password" aria-pressed="false">Show</button></div><p id="passwordHelp" class="helper" hidden>At least 8 characters. Maximum 72 UTF-8 bytes; some characters use more than one byte.</p><p id="passwordError" class="field-error" hidden></p></div>
+          <div class="field" id="confirmField" hidden><label for="confirmPassword">Confirm password</label><div class="password-control"><input type="password" id="confirmPassword" name="confirmPassword" autocomplete="new-password" aria-describedby="confirmPasswordError" /><button type="button" class="btn btn-quiet password-toggle" data-password="confirmPassword" aria-label="Show confirmation password" aria-controls="confirmPassword" aria-pressed="false">Show</button></div><p id="confirmPasswordError" class="field-error" hidden></p></div>
+        </div>
+        <button type="submit" id="loginBtn" class="btn btn-primary full-width auth-submit">Sign in</button>
+      </fieldset>
+    </form>
+    <div class="auth-switch"><p id="switchPrompt">New to Resume Intelligence?</p><button type="button" id="toggleMode" class="btn btn-quiet" disabled>Create an account</button></div>
+    <noscript><p class="status status-warning">JavaScript is required to sign in and analyze your resume. Please enable it to continue.</p></noscript>
+  </section>
+</main>
+<footer class="auth-footer">Your experience. A more focused way to prepare.</footer>
+</body>
+</html>
